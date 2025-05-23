@@ -171,10 +171,10 @@ function getValidator() {
       [
         ["shownFamilies"],
         v => {
-          if (v !== null || !(v instanceof Array)) throw Error("Expecting either null or Array of family names, got:", v)
+          if (v !== null && !(v instanceof Array)) throw Error(`Expecting either null or Array of family names, got: ${typeof v}`)
         }
-      ]
-      //[] TODO: tissue validation
+      ],
+      [["tissueX", "tissueY", "tissueZ"], () => {}]
     ]
     for (const [keys, validator] of asArray) {
       for (const key of keys) {
@@ -192,15 +192,22 @@ function getValidator() {
         console.error(`${key}: ${err.message}`);
         return;
       }
-    } else if (key.endsWith("Diameter")) {
-      if (typeof v !== "number" || v <= 0) {
-        console.error(`${key}: Expecting true positive number, got: ${v} (${typeof v})`);
-        return;
-      } else {
+    } else {
+      if (key.endsWith("Diameter")) {
+        if (typeof value !== "number" || value <= 0) {
+          console.error(`${key}: Expecting true positive number, got: ${value} (${typeof value})`);
+          return;
+        }
+        return true;
+      } else if (key.endsWith("Color")) {
+        if (!/^#[A-Fa-f0-9]{6}(?:[A-Fa-f0-9]{2})?$/.test(value)) {
+          console.error(`${key}: Expecting RGB(A) hex color code, got: ${value}`);
+          return;
+        }
         return true;
       }
+      console.error(`Unknown key: ${key}`);
     }
-    console.error(`Unknown key: ${key}`);
   }
 
   return validate;
