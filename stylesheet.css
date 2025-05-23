@@ -1,0 +1,24 @@
+/* Ensure full size for the HTML body and remove scrollbars */
+html, body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+/* The canvas occupies the full screen – note the id "view" as required */
+#view {
+  width: 100%;
+  height: 100%;
+  touch-action: none; /* Disable touch actions to improve pointer drag support */
+}
+/* Style for the tooltip that shows point data on hover */
+.tooltip {
+  position: absolute;
+  padding: 5px 10px;
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  border-radius: 5px;
+  display: none;
+  pointer-events: none;
+  font-size: 12px;
+}

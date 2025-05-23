@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>TOX Flyer Prototype</title>
+  <!--
+    We include Babylon.js from the CDN.
+    Note: The WebGPU engine is included in Babylon.js – no extra scripts are required.
+  -->
+  <script src="https://cdn.babylonjs.com/babylon.js"></script>
+  <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
+  <script src="https://cdn.babylonjs.com/gui/babylon.gui.min.js"></script>
+  <link rel="stylesheet" type="text/css" href="stylesheet.css">
+</head>
+<body>
+  <!-- A full-page canvas element where the 3D view will be rendered -->
+  <canvas id="view"></canvas>
+  <!-- A separate div for displaying tooltips when hovering over data points -->
+  <div id="datapoint" class="tooltip"></div>
+  
+  <script type="module" src="flyer.js"></script>
+</body>
+</html>
