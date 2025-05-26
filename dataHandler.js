@@ -1,6 +1,6 @@
 "use strict";
 
-const data = await (await fetch("/sampleData.json")).json();
+import data from "./sampleData.json" with { type: "json" };
 
 export const handler = {
   get families() {

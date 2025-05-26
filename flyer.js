@@ -13,19 +13,18 @@ import { config } from "./config.js";
  ***************************************************************/
 async function initializeEngine(canvas) {
   // Check if the browser supports WebGPU. navigator.gpu is defined only if WebGPU is available.
-  let engine;
-  if (typeof BABYLON === "undefined") {
-      throw new Error("Could not load Babylon.js");
+  if (!navigator.gpu || typeof BABYLON === "undefined") {
+    throw new Error("WebGPU is not supported on this browser.");
   }
   // Create a new WebGPU engine.
   // Babylon.js automatically detects that we want to use WebGPU based on this engine.
-  engine = new BABYLON.WebGPUEngine(canvas);
+  const engine = new BABYLON.WebGPUEngine(canvas);
   try {
     // Asynchronously initialize the engine. This prepares the WebGPU adapter.
     await engine.initAsync();
   } catch (err) {
-    console.log("No WebGPU support, falling back to WebGL.");
-    engine = new BABYLON.Engine(canvas);
+    console.error("Failed to initialize WebGPU engine: ", err);
+    throw err;
   }
   // Disable offline support for a faster startup (optional setting)
   engine.enableOfflineSupport = false;
