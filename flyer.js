@@ -62,9 +62,19 @@ function setupScene(engine, canvas) {
   // Create a new Babylon scene.
   const scene = new BABYLON.Scene(engine);
 
+  // set fog to limit view
+  scene.fogMode = BABYLON.Scene.FOGMODE_LINEAR;
+  for (const setting of ["chunkDiameter", "chunkLoadRange"]) {
+    config.setSetterCallback(setting, () => {
+      scene.fogEnd = config.get("chunkLoadRange") * config.get("chunkDiameter");
+      scene.fogStart = 0.5 * config.get("chunkDiameter");
+    });
+  }
+
   // set background color
   config.setSetterCallback("backgroundColor", (hexColorCode) => {
     setBackgroundColor(scene, hexColorCode);
+    scene.fogColor = new BABYLON.Color4.FromHexString(hexColorCode);
   });
 
   setupCamera(scene, canvas);

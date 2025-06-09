@@ -1,5 +1,6 @@
 "use strict";
 
+// using fetch, as this is not supported in Linux: import data from "./sampleData.json" with { type: "json" };
 const data = await (await fetch("./sampleData.json")).json();
 
 export const handler = {
