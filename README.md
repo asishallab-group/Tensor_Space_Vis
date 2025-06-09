@@ -36,10 +36,9 @@ This demo focuses on sex-related gene families across 4 mammalian species:
 
 ## Getting Started
 
-To test the flyer locally, start a simple HTTP server in `docs/` directory:
+To test the flyer locally, start a simple HTTP server:
 
 ```bash
-cd docs/
 python3 -m http.server 8080
 ```
 
