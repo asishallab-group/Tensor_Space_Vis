@@ -33,12 +33,12 @@ export function calcVectorDistance(v1, v2) {
   return BABYLON.Vector3.Distance(v1, v2);
 }
 
-export function WebGPUEngine(canvas) {
-  return new BABYLON.WebGPUEngine(canvas);
+export function WebGPUEngine(canvas, ...args) {
+  return new BABYLON.WebGPUEngine(canvas, ...args);
 }
 
-export function WebGLEngine(canvas) {
-  return new BABYLON.WebGPUEngine(canvas);
+export function WebGLEngine(canvas, ...args) {
+  return new BABYLON.Engine(canvas, ...args);
 }
 
 export function Scene(engine) {

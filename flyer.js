@@ -26,10 +26,10 @@ import {
  * - Wraps any initialization errors in a try/catch.
  ***************************************************************/
 async function initializeEngine(canvas) {
-  // Create a new WebGPU engine.
-  // Babylon.js automatically detects that we want to use WebGPU based on this engine.
-  let engine = WebGPUEngine(canvas, true, { stencil: true });
+  let engine;
   try {
+    // Create a new WebGPU engine.
+    engine = WebGPUEngine(canvas, true, { stencil: true });
     // Asynchronously initialize the engine. This prepares the WebGPU adapter.
     await engine.initAsync();
   } catch (err) {
