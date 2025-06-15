@@ -12,6 +12,9 @@ export const handler = {
       data[this.families[0]]?.[tissues] ?? {}
     )
   },
+  getGeneCount(family) {
+    return data[family]?.genes.length;
+  },
   getColor(family) {
     // using the checksum of the family name as color code
     const value = crc32(family) & (8**6-1); // mask the bits to have a number that is between octal 0-777777, a range of around 260k values
@@ -24,25 +27,23 @@ export const handler = {
   },
   getCentroid(family, ...tissues) {
     return tissues.map((tissue) => {
-      return data[family]?.["centroid"][tissue];
-    })
+      return data[family]?.centroid[tissue];
+    });
   },
-  iterGenes: function* (family, ...tissues) {
+  getGeneData: function (family, geneIndex, tissues=null, attributes=null) {
+    tissues ??= this.tissues;
+
     const familyData = data[family];
     if (familyData !== undefined) {
-      const allGeneData = Object.entries(familyData);
-      allGeneData.pop(); // remove centroid data
-      const allTissueData = allGeneData.pop()[1];
-      for (const i in familyData.genes) {
-        const singleGeneData = {}
-        for (const [key, values] of allGeneData) {
-          singleGeneData[key] = values[i];
-        }
-        singleGeneData["coordinates"] = tissues.map((tissue) => {
-          return allTissueData[tissue]?.[i];
-        })
-        yield singleGeneData;
+      const geneData = {};
+      attributes ??= Object.keys(familyData).slice(0, -2); // without 'centroid' and 'tissues'
+      for (const key of attributes) {
+        geneData[key] = familyData[key][geneIndex];
       }
+      geneData.coordinates = tissues.map((tissue) => {
+        return familyData.tissues[tissue]?.[geneIndex];
+      })
+      return geneData;
     }
   }
 }

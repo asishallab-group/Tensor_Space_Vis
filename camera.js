@@ -1,6 +1,6 @@
 "use strict";
 
-import { createSphereMesh } from "./plotData.js";
+import { SphereMesh, Vector, UniversalCam, OrbitCam, calcVectorDistance, Material, Color } from "./babylon.js";
 
 /**
  * Function: setupCamera
@@ -13,7 +13,7 @@ import { createSphereMesh } from "./plotData.js";
 export function setupCamera(scene, canvas) {  
   // Create a UniversalCamera placed initially above the ground and away from the origin.
   // UniversalCamera is suited for first-person style movement and rotation in 3D space.
-  const camera = new BABYLON.UniversalCamera("camera", new BABYLON.Vector3(0, 0, 0), scene);
+  const camera = UniversalCam(scene, "camera");
   scene.switchActiveCamera(camera);
 
   // Customize key bindings for movement (WASD, Arrow keys, etc.).
@@ -54,9 +54,89 @@ export function setupCamera(scene, canvas) {
   // });
 
   // create an ArcRotateCamera for orbit view
-  const orbitCam = new BABYLON.ArcRotateCamera("orbitCamera", null, null, 10, new BABYLON.Vector3.Zero(), scene);
-  orbitCam.lowerRadiusLimit = 1;
-  const meshSelectedPoints = createSphereMesh(scene, "meshSelectedPoints", "selectedDataPointColor");
+  const orbitCam = OrbitCam(scene, "orbitCamera");
+
+  const highlightLayer = new BABYLON.HighlightLayer("highlight", scene);
+  const meshSelectedPoints = SphereMesh(scene, "meshSelectedPoints");
+
+  config.setSetterCallback("selectedDataPointColor", hexColorCode => {
+    highlightLayer.removeMesh(meshSelectedPoints);
+    highlightLayer.addMesh(meshSelectedPoints, Color(hexColorCode));
+  })
+  highlightLayer.setEffectIntensity(meshSelectedPoints, 0.7);
+
+  // disable as long as spheres are picked
+  highlightLayer.isEnabled = false;
+
+  meshSelectedPoints.material = Material(scene, null, Color(0, 0, 0, 0));
+  SphereMesh.setSize(meshSelectedPoints, 0); // hide initial instance
+  meshSelectedPoints.TOX_pick = function (family, geneIndex) {
+    const scale = config.get("scale");
+    const inlierDiameter = config.get(`${family}_Diameter`) ?? config.get("defaultDiameter");
+    const outlierDiameter = config.get(`${family}_OutlierDiameter`) ?? config.get("defaultDiameter");
+    const tissues = [config.get("tissueX"), config.get("tissueY"), config.get("tissueZ")];
+
+    function pickOne(geneIndex) {
+      const { is_outlier, coordinates } = dataHandler.getGeneData(family, geneIndex, tissues, ["is_outlier"]);
+      const instance = this.createInstance();
+      instance.position = Vector(...coordinates.map(v => v * scale));
+      instance.TOX_family = family;
+      instance.TOX_geneIndex = geneIndex;
+      SphereMesh.setSize(instance, is_outlier ? outlierDiameter : inlierDiameter);
+    }
+    this.TOX_unpick(family, geneIndex);
+
+    if (geneIndex !== undefined) {
+      pickOne.call(this, geneIndex);
+    } else {
+      const geneCount = dataHandler.getGeneCount(family);
+      for (let geneIndex = 0; geneIndex < geneCount; geneIndex++) {
+        pickOne.call(this, geneIndex);
+      }
+    }
+    highlightLayer.isEnabled = true;
+  }
+  meshSelectedPoints.TOX_unpick = function (family, geneIndex) {
+    const instances = this.instances.filter(i => i.TOX_family === family && ((geneIndex === undefined) || (i.TOX_geneIndex === geneIndex)))
+    for (const instance of instances) {
+      if (this.instances.length === 1) {
+        highlightLayer.isEnabled = false;
+      }
+      instance.dispose();
+    }
+    return instances.length;
+  }
+  meshSelectedPoints.TOX_update = function () {
+    for (const instance of [...this.instances]) {
+      this.TOX_pick(instance.TOX_family, instance.TOX_geneIndex);
+    }
+  }
+
+  // initially fetch picked instances from config and set them up
+  new Promise(resolve => {
+    document.dispatchEvent(new CustomEvent("initializePicked", { detail: resolve }));
+  }).then(picked => {
+    try {
+      for (const [family, genes] of Object.entries(picked)) {
+        for (const geneIndex of genes) {
+          meshSelectedPoints.TOX_pick(family, geneIndex);
+        }
+      }
+    } catch {
+      console.error("Could restore picked elements");;
+    }
+  })
+
+  // send picked instances to config
+  document.addEventListener("feedConfig", (evt) => {
+    const picked = {};
+    for (const instance of meshSelectedPoints.instances) {
+      picked[instance.TOX_family] ??= [];
+      picked[instance.TOX_family].push(instance.TOX_geneIndex);
+    }
+    evt.detail.meshSelectedPoints(picked);
+  })
+
   setupOrbitView(scene, meshSelectedPoints);
 
   config.setSetterCallback("rotationX", (radians) => {
@@ -78,7 +158,7 @@ export function setupCamera(scene, canvas) {
     config.setSetterCallback(axis, (position) => {
       const scale = config.get("scale");
       if (config.get("orbitMode")) {
-        const newPosition = new BABYLON.Vector3(config.get("x"), config.get("y"), config.get("z")).scale(scale);
+        const newPosition = Vector(config.get("x"), config.get("y"), config.get("z")).scale(scale);
         const newTarget = getOrbitTargetFromPosition(scene, newPosition, orbitCam.radius);
         orbitCam.setTarget(newTarget);
         orbitCam.position = newPosition;
@@ -129,7 +209,7 @@ export function setupCamera(scene, canvas) {
 }
 
 function getOrbitTargetFromPosition(scene, position, radius) {
-  const forward = scene.activeCamera.getDirection(BABYLON.Vector3.Forward());
+  const forward = scene.activeCamera.getDirection(Vector(0, 0, 1));
   forward.normalize();
   const newTarget = position.add(forward.scale(radius));
   return newTarget;
@@ -171,12 +251,12 @@ function setupOrbitView(scene, meshSelectedPoints) {
 
         // Calculate the average position
         const numInstances = meshSelectedPoints.instances.length;
-        target = new BABYLON.Vector3(
+        target = Vector(
             sumX / numInstances,
             sumY / numInstances,
             sumZ / numInstances
         );
-        radius = BABYLON.Vector3.Distance(target, scene.activeCamera.position);
+        radius = calcVectorDistance(target, scene.activeCamera.position);
       }
       scene.switchActiveCamera(orbitCamera);
       orbitCamera.setTarget(target);

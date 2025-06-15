@@ -1,8 +1,22 @@
 "use strict";
 
+import { handler as dataHandler } from "./dataHandler.js";
 import { plotData } from "./plotData.js";
 import { setupCamera } from "./camera.js";
 import { config } from "./config.js";
+import {
+  WebGPUEngine,
+  WebGLEngine,
+  Scene,
+  Color,
+  Viewport,
+  Vector,
+  Light,
+  TransformNode,
+  OrbitCam,
+  SphereMesh,
+  Material
+} from "./babylon.js";
 
 /***************************************************************
  * Function: initializeEngine
@@ -12,18 +26,15 @@ import { config } from "./config.js";
  * - Wraps any initialization errors in a try/catch.
  ***************************************************************/
 async function initializeEngine(canvas) {
-  if (typeof BABYLON === "undefined") {
-    throw new Error("Could not load Babylon.js.");
-  }
   // Create a new WebGPU engine.
   // Babylon.js automatically detects that we want to use WebGPU based on this engine.
-  let engine = new BABYLON.WebGPUEngine(canvas);
+  let engine = WebGPUEngine(canvas, true, { stencil: true });
   try {
     // Asynchronously initialize the engine. This prepares the WebGPU adapter.
     await engine.initAsync();
   } catch (err) {
     console.log("WebGPU is not supported, falling back to WebGL");
-    engine = new BABYLON.Engine(canvas);
+    engine = WebGLEngine(canvas, true, { stencil: true });
   }
   // Disable offline support for a faster startup (optional setting)
   engine.enableOfflineSupport = false;
@@ -60,10 +71,10 @@ function configureCanvas(id) {
  ***************************************************************/
 function setupScene(engine, canvas) {
   // Create a new Babylon scene.
-  const scene = new BABYLON.Scene(engine);
+  const scene = Scene(engine);
 
   // set fog to limit view
-  scene.fogMode = BABYLON.Scene.FOGMODE_LINEAR;
+  scene.fogMode = Scene.FOGMODE_LINEAR;
   for (const setting of ["chunkDiameter", "chunkLoadRange"]) {
     config.setSetterCallback(setting, () => {
       scene.fogEnd = config.get("chunkLoadRange") * config.get("chunkDiameter");
@@ -74,24 +85,24 @@ function setupScene(engine, canvas) {
   // set background color
   config.setSetterCallback("backgroundColor", (hexColorCode) => {
     setBackgroundColor(scene, hexColorCode);
-    scene.fogColor = new BABYLON.Color4.FromHexString(hexColorCode);
+    scene.fogColor = Color.FromHexString(hexColorCode);
   });
 
   setupCamera(scene, canvas);
 
   // Create a basic hemispheric light to illuminate the scene.
-  let light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
-  light.specular = new BABYLON.Color3(0.2,0.2,0.2);  // reduces reflection
+  let light = Light(scene, "light", Vector(0, 1, 0));
+  light.specular = Color(0.2,0.2,0.2);  // reduces reflection
   light.intensity = 0.8;
-  light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, -1, 0), scene);
-  light.specular = new BABYLON.Color3(0.2,0.2,0.2);  // reduces reflection
+  light = Light(scene, "light", Vector(0, -1, 0));
+  light.specular = Color(0.2,0.2,0.2);  // reduces reflection
   light.intensity = 0.8;
   
   return scene;
 }
 
 function setBackgroundColor(scene, hexColorCode) {
-  scene.clearColor = BABYLON.Color4.FromHexString(hexColorCode);
+  scene.clearColor = Color.FromHexString(hexColorCode);
 }
 
 /**
@@ -121,8 +132,7 @@ function showPositionOverlay(scene, xAxis, yAxis, zAxis) {
   function setColorCallback(attribute, textfield, axis) {
     config.setSetterCallback(attribute, (hexColorCode) => {
       setTextfieldColor(textfield, hexColorCode);
-      axis.material.diffuseColor = BABYLON.Color4.FromHexString(hexColorCode);
-      axis.material.alpha = axis.material.diffuseColor.a;
+      SphereMesh.setColor(axis, hexColorCode)
     })
   }
   setColorCallback("xAxisColor", xPosition, xAxis);
@@ -158,40 +168,39 @@ function setTextfieldColor(textfield, color) {
  */
 function add3DCompass(mainScene, engine) {
   // Create a new scene dedicated to the compass visualization.
-  const compassScene = new BABYLON.Scene(engine);
+  const compassScene = Scene(engine);
 
   // Prevent the compass scene from clearing the canvas to maintain visibility of the main scene.
   compassScene.autoClear = false;
   setBackgroundColor(compassScene, "#00000000");
 
   // Create an orthographic ArcRotateCamera for the compass.
-  const compassCamera = new BABYLON.ArcRotateCamera(
-    "compassCamera",
-    Math.PI / 2, Math.PI / 2, 5, BABYLON.Vector3.Zero(), compassScene
-  );
+  const compassCamera = OrbitCam(compassScene, "compassCamera");
+  compassCamera.alpha = Math.PI / 2;
+  compassCamera.beta = Math.PI / 2;
   compassCamera.mode = BABYLON.Camera.ORTHOGRAPHIC_CAMERA; // Fixed scaling.
   compassCamera.orthoLeft = -1;
   compassCamera.orthoRight = 1;
   compassCamera.orthoBottom = -1;
   compassCamera.orthoTop = 1;
-  compassCamera.viewport = new BABYLON.Viewport(0.85, 0, 0.15, 0.25); // Bottom-right corner.
+  compassCamera.viewport = Viewport(0.85, 0, 0.15, 0.25); // Bottom-right corner.
 
   // Add light to the compass scene to illuminate the axes.
-  new BABYLON.HemisphericLight("compassLight", new BABYLON.Vector3(0, 1, 0), compassScene);
+  Light(compassScene, "compassLight", Vector(0, 1, 0));
 
   // Axis and arrowhead size settings.
   const axisSize = 0.8;    // Length of the axis lines.
   const axisRadius = 0.0375;
-  const cross = new BABYLON.TransformNode("cross", compassScene);
+  const cross = TransformNode(compassScene, "cross");
 
   const createAxis = (direction) => {
     // Create the axis line.
     const axis = BABYLON.MeshBuilder.CreateTube(
       `${direction}Axis`,
-      { path: [BABYLON.Vector3.Zero(), direction.scale(axisSize)], radius: axisRadius, cap: BABYLON.Mesh.CAP_END },
+      { path: [Vector(0, 0, 0), direction.scale(axisSize)], radius: axisRadius, cap: BABYLON.Mesh.CAP_END },
       compassScene
     );
-    const axisMaterial = new BABYLON.StandardMaterial(`${direction}AxisMat`, compassScene);
+    const axisMaterial = Material(compassScene, `${direction}AxisMat`);
     axis.material = axisMaterial;
     axis.parent = cross;
     return axis;
@@ -200,12 +209,10 @@ function add3DCompass(mainScene, engine) {
   // Create the X, Y, and Z axes with their respective colors and show current position above
   showPositionOverlay(
     mainScene,
-    createAxis(new BABYLON.Vector3(-1, 0, 0)),
-    createAxis(new BABYLON.Vector3(0, 1, 0)),
-    createAxis(new BABYLON.Vector3(0, 0, -1))
+    createAxis(Vector(-1, 0, 0)),
+    createAxis(Vector(0, 1, 0)),
+    createAxis(Vector(0, 0, -1))
   )
-  // add origin
-  BABYLON.MeshBuilder.CreateSphere("origin", { diameter: 5 * axisRadius }, compassScene);
 
   // Synchronize the compass with the main camera's rotation.
   mainScene.onBeforeRenderObservable.add(() => {
@@ -213,7 +220,7 @@ function add3DCompass(mainScene, engine) {
     let alpha;
     let beta;
 
-    if (activeCamera instanceof BABYLON.ArcRotateCamera) {
+    if (activeCamera.name === "orbitCamera") {
       // Compute quaternion from alpha and beta for ArcRotateCamera.
       alpha = activeCamera.alpha + Math.PI / 2;
       beta = -activeCamera.beta + Math.PI / 2;
@@ -230,7 +237,9 @@ function add3DCompass(mainScene, engine) {
     );
     cross.rotationQuaternion = camQuat.invert();
   });
-
+  // add origin
+  const origin = SphereMesh(compassScene, "origin");
+  origin.scaling = origin.scaling.scale(5 * axisRadius);
 
   // Return the compass scene for further customization or control.
   return compassScene;
@@ -310,6 +319,11 @@ function downloadImage(data) {
  ***************************************************************/
 async function main() {
   try {
+    Object.defineProperty(window, "dataHandler", {
+      value: dataHandler,
+      writable: false, // Prevents modification
+      configurable: false // Prevents deletion
+    });
     Object.defineProperty(window, "config", {
       value: config,
       writable: false, // Prevents modification

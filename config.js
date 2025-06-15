@@ -20,7 +20,7 @@ function setupConfig() {
       tissueX: "Liver",
       tissueY: "Heart",
       tissueZ: "Lung",
-      outlierDataPointDiameter: 0.25
+      defaultDiameter: 0.25
     },
     lightMode: {
       selectedDataPointColor: "#FFFF00FF",
@@ -61,7 +61,8 @@ function setupConfig() {
     "chunkLoadRange",
     "scale",
     "darkMode",
-    "shownFamilies"
+    "shownFamilies",
+    "defaultDiameter"
   ];
 
   const config = {
@@ -79,8 +80,12 @@ function setupConfig() {
     },
     set(key, value, runCallback=true) {
       if (validate(key, value) !== undefined) {
+        if (!key.includes("_") && this.get(key) === undefined) {
+          console.error(`${key}: Unknown key`);
+          return;
+        }
         if (defaults.allModes[key] !== undefined || !key.endsWith("Color")) values.allModes[key] = value;
-        else if (config.get("darkMode")) values.darkMode[key] = value;
+        else if (this.get("darkMode")) values.darkMode[key] = value;
         else values.lightMode[key] = value;
 
         if (runCallback) {
@@ -98,14 +103,20 @@ function setupConfig() {
     setSetterCallback(key, callback) {
       if (callbacks[key] === undefined) {
         callbacks[key] = (value) => callback(value); // wrapping the callback to avoid this-context on the private callbacks object
-        callback(config.get(key));
+        callback(this.get(key));
       } else {
         throw Error(`Another callback function has been already registered for '${key}' in the past.`);
       }
     },
-    asURL() {
+    async asURL() {
       const currentURL = new URL(document.URL);
-      return `${currentURL.origin}${currentURL.pathname}?config=${btoa(JSON.stringify(values))}`;
+      const picked = await new Promise(resolve => {
+        document.dispatchEvent(new CustomEvent(
+          "feedConfig",
+          { detail: {meshSelectedPoints: resolve } }
+        ));
+      });
+      return `${currentURL.origin}${currentURL.pathname}?config=${btoa(JSON.stringify({...values, picked}))}`;
     }
   }
 
@@ -132,9 +143,12 @@ function setupConfig() {
       if (importingConfig.allModes) values.allModes = importingConfig.allModes;
       if (importingConfig.darkMode) values.darkMode = importingConfig.darkMode;
       if (importingConfig.lightMode) values.lightMode = importingConfig.lightMode;
+      document.addEventListener("initializePicked", evt => {
+        evt.detail(importingConfig.picked);
+      }, { once: true })
     }
   } catch (err) {
-    console.log("Could not import config from URL");
+    console.error("Could not import config from URL");
   }
 
   return config;
