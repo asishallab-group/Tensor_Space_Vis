@@ -1,7 +1,8 @@
 "use strict";
 
-// using fetch, as this is not supported in Linux: import data from "./sampleData.json" with { type: "json" };
-const data = await (await fetch("./sampleData.json")).json();
+// using fetch, as this is may not be supported in some cases: import data from "./sampleData.json" with { type: "json" };
+// anyway, the data will come from wasm in future
+const data = await (await fetch("./app/sampleData.json")).json();
 
 export const handler = {
   get families() {

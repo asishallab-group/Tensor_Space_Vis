@@ -1,6 +1,6 @@
 "use strict";
 
-import { SphereMesh, Vector, UniversalCam, OrbitCam, calcVectorDistance, Material, Color } from "./babylon.js";
+import { Vector, UniversalCam, OrbitCam, calcVectorDistance, Material, Color } from "./babylon.js";
 
 /**
  * Function: setupCamera
@@ -43,101 +43,10 @@ export function setupCamera(scene, canvas) {
     camera.angularSensibility = sensibility; // Controls mouse drag sensitivity for view rotation.
   })
 
-  // // Listen to the mouse wheel event on the canvas to simulate zooming.
-  // canvas.addEventListener("wheel", event => {
-  //   // event.deltaY is positive when scrolling down (zoom out) and negative when scrolling up (zoom in).
-  //   const delta = event.deltaY * 0.0005;
-  //   // Adjust the camera's field of view (fov) to simulate zoom changes.
-  //   camera.fov += delta;
-  //   // Clamp the FOV value to keep the zoom within sensible limits.
-  //   camera.fov = Math.min(Math.max(camera.fov, 0.1), 1.5);
-  // });
-
   // create an ArcRotateCamera for orbit view
   const orbitCam = OrbitCam(scene, "orbitCamera");
 
-  const highlightLayer = new BABYLON.HighlightLayer("highlight", scene);
-  const meshSelectedPoints = SphereMesh(scene, "meshSelectedPoints");
-
-  config.setSetterCallback("selectedDataPointColor", hexColorCode => {
-    highlightLayer.removeMesh(meshSelectedPoints);
-    highlightLayer.addMesh(meshSelectedPoints, Color(hexColorCode));
-  })
-  highlightLayer.setEffectIntensity(meshSelectedPoints, 0.7);
-
-  // disable as long as spheres are picked
-  highlightLayer.isEnabled = false;
-
-  meshSelectedPoints.material = Material(scene, null, Color(0, 0, 0, 0));
-  SphereMesh.setSize(meshSelectedPoints, 0); // hide initial instance
-  meshSelectedPoints.TOX_pick = function (family, geneIndex) {
-    const scale = config.get("scale");
-    const inlierDiameter = config.get(`${family}_Diameter`) ?? config.get("defaultDiameter");
-    const outlierDiameter = config.get(`${family}_OutlierDiameter`) ?? config.get("defaultDiameter");
-    const tissues = [config.get("tissueX"), config.get("tissueY"), config.get("tissueZ")];
-
-    function pickOne(geneIndex) {
-      const { is_outlier, coordinates } = dataHandler.getGeneData(family, geneIndex, tissues, ["is_outlier"]);
-      const instance = this.createInstance();
-      instance.position = Vector(...coordinates.map(v => v * scale));
-      instance.TOX_family = family;
-      instance.TOX_geneIndex = geneIndex;
-      SphereMesh.setSize(instance, is_outlier ? outlierDiameter : inlierDiameter);
-    }
-    this.TOX_unpick(family, geneIndex);
-
-    if (geneIndex !== undefined) {
-      pickOne.call(this, geneIndex);
-    } else {
-      const geneCount = dataHandler.getGeneCount(family);
-      for (let geneIndex = 0; geneIndex < geneCount; geneIndex++) {
-        pickOne.call(this, geneIndex);
-      }
-    }
-    highlightLayer.isEnabled = true;
-  }
-  meshSelectedPoints.TOX_unpick = function (family, geneIndex) {
-    const instances = this.instances.filter(i => i.TOX_family === family && ((geneIndex === undefined) || (i.TOX_geneIndex === geneIndex)))
-    for (const instance of instances) {
-      if (this.instances.length === 1) {
-        highlightLayer.isEnabled = false;
-      }
-      instance.dispose();
-    }
-    return instances.length;
-  }
-  meshSelectedPoints.TOX_update = function () {
-    for (const instance of [...this.instances]) {
-      this.TOX_pick(instance.TOX_family, instance.TOX_geneIndex);
-    }
-  }
-
-  // initially fetch picked instances from config and set them up
-  new Promise(resolve => {
-    document.dispatchEvent(new CustomEvent("initializePicked", { detail: resolve }));
-  }).then(picked => {
-    try {
-      for (const [family, genes] of Object.entries(picked)) {
-        for (const geneIndex of genes) {
-          meshSelectedPoints.TOX_pick(family, geneIndex);
-        }
-      }
-    } catch {
-      console.error("Could restore picked elements");;
-    }
-  })
-
-  // send picked instances to config
-  document.addEventListener("feedConfig", (evt) => {
-    const picked = {};
-    for (const instance of meshSelectedPoints.instances) {
-      picked[instance.TOX_family] ??= [];
-      picked[instance.TOX_family].push(instance.TOX_geneIndex);
-    }
-    evt.detail.meshSelectedPoints(picked);
-  })
-
-  setupOrbitView(scene, meshSelectedPoints);
+  setupOrbitView(scene);
 
   config.setSetterCallback("rotationX", (radians) => {
     if (config.get("orbitMode")) {
@@ -215,7 +124,7 @@ function getOrbitTargetFromPosition(scene, position, radius) {
   return newTarget;
 }
 
-function setupOrbitView(scene, meshSelectedPoints) {
+function setupOrbitView(scene) {
   config.setSetterCallback("orbitMode", (enable) => {
     if (!enable && scene.activeCamera.name !== "camera") {
       const camera = scene.getCameraByName("camera");
@@ -228,7 +137,7 @@ function setupOrbitView(scene, meshSelectedPoints) {
 
       let target;
       let radius;
-
+      const meshSelectedPoints = scene.getMeshByName("meshSelectedPoints");
       if (meshSelectedPoints.instances.length === 0) {
         radius = 10;
         target = getOrbitTargetFromPosition(scene, scene.activeCamera.position, radius);

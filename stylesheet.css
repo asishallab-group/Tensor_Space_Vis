@@ -10,6 +10,7 @@ html, body {
   width: 100%;
   height: 100%;
   touch-action: none; /* Disable touch actions to improve pointer drag support */
+  user-select: none;
 }
 /* Style for the tooltip that shows point data on hover */
 .tooltip {

@@ -46,7 +46,7 @@ Then, open [http://localhost:8080](http://localhost:8080/) in your browser.
 
 ## Configuration
 
-The config object is available in developer tools. Open the console and modify settings as needed. Supported attributes can be found in [`./config.js`](./config.js).
+The config object is available in developer tools. Open the console and modify settings as needed. Supported attributes can be found in [`./config.js`](./app/config.js).
 
 To generate a sharable URL reflecting the current view, use:
 

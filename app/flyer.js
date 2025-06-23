@@ -1,9 +1,9 @@
 "use strict";
 
 import { handler as dataHandler } from "./dataHandler.js";
-import { plotData } from "./plotData.js";
-import { setupCamera } from "./camera.js";
 import { config } from "./config.js";
+import { plotData } from "./flyer/plotData.js";
+import { setupCamera } from "./flyer/camera.js";
 import {
   WebGPUEngine,
   WebGLEngine,
@@ -14,9 +14,9 @@ import {
   Light,
   TransformNode,
   OrbitCam,
-  SphereMesh,
+  Mesh,
   Material
-} from "./babylon.js";
+} from "./flyer/babylon.js";
 
 /***************************************************************
  * Function: initializeEngine
@@ -27,14 +27,15 @@ import {
  ***************************************************************/
 async function initializeEngine(canvas) {
   let engine;
+  const engineOptions = { antialias: true, stencil: true };
   try {
     // Create a new WebGPU engine.
-    engine = WebGPUEngine(canvas, true, { stencil: true });
+    engine = WebGPUEngine(canvas, engineOptions);
     // Asynchronously initialize the engine. This prepares the WebGPU adapter.
     await engine.initAsync();
   } catch (err) {
     console.log("WebGPU is not supported, falling back to WebGL");
-    engine = WebGLEngine(canvas, true, { stencil: true });
+    engine = WebGLEngine(canvas, engineOptions);
   }
   // Disable offline support for a faster startup (optional setting)
   engine.enableOfflineSupport = false;
@@ -132,7 +133,7 @@ function showPositionOverlay(scene, xAxis, yAxis, zAxis) {
   function setColorCallback(attribute, textfield, axis) {
     config.setSetterCallback(attribute, (hexColorCode) => {
       setTextfieldColor(textfield, hexColorCode);
-      SphereMesh.setColor(axis, hexColorCode)
+      Mesh.setColor(axis, hexColorCode)
     })
   }
   setColorCallback("xAxisColor", xPosition, xAxis);
@@ -238,7 +239,7 @@ function add3DCompass(mainScene, engine) {
     cross.rotationQuaternion = camQuat.invert();
   });
   // add origin
-  const origin = SphereMesh(compassScene, "origin");
+  const origin = Mesh.Sphere(compassScene, "origin");
   origin.scaling = origin.scaling.scale(5 * axisRadius);
 
   // Return the compass scene for further customization or control.
@@ -291,7 +292,8 @@ function captureScenes(engine, ...scenes) {
             tempCtx.drawImage(img, 0, 0);
             captureScene(scenes, i+1);
           };
-        }
+        },
+        "image/png", 1, true, null, true, true
       );
       if (!autoClear) {
         scene.autoClear = false;
