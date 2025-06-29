@@ -1,6 +1,6 @@
 "use strict";
 
-import { Color, Vector, Mesh } from "./babylon.js";
+import { Color, Vector, Mesh, fillThinInstanceBuffers } from "./babylon.js";
 
 export function getChunks(scene) {
   const chunks = {
@@ -11,6 +11,11 @@ export function getChunks(scene) {
     },
     chunks: new Map(),
     active: [],
+    initChunk(centroid) {
+      if (!this.chunks.has(centroid)) {
+        this.chunks.set(centroid, [new Map(), {inliers: 0, outliers: 0, centroids: 0}, new Map()]);
+      }
+    },
     recalculate() {
       // Each key in this object corresponds to a chunk's centroid in string form.
       this.load(false);
@@ -24,6 +29,30 @@ export function getChunks(scene) {
       const position = this.scene.activeCamera.position.asArray();
       this.currentChunkCentroid = getChunkCentroid(position, this.diameter);
 
+      const handleMember = (family, coordinates, memberType, geneIndex) => {
+        const scaled = coordinates.map((v) => v*this.scale);
+
+        // Determine the centroid of the chunk this position falls into.
+        // getChunkCentroid is assumed to return an array-like coordinate (e.g. [x, y, z])
+        // which is also used as a key in the `chunks` object.
+        const centroid = getChunkCentroid(scaled, this.diameter).toString();
+
+        this.initChunk(centroid);
+
+        const [genes, counts] = this.chunks.get(centroid);
+        if (!genes.has(family)) {
+          genes.set(family, {});
+        }
+        const members = genes.get(family);
+        if (geneIndex !== undefined) {
+          members[memberType] ??= [];
+          members[memberType].push(geneIndex);
+        } else {
+          members[memberType] = true;
+        }
+        counts[memberType]++;
+      }
+
       // Loop through each family available in the data handler.
       // For each family, iterate through the genes for specific tissues
       // and create an instance of the outlier mesh for each data point.
@@ -31,27 +60,12 @@ export function getChunks(scene) {
         const geneCount = dataHandler.getGeneCount(family);
         for (let geneIndex = 0; geneIndex < geneCount; geneIndex++) {
           const { coordinates, is_outlier } = dataHandler.getGeneData(family, geneIndex, this.tissues, ["is_outlier"]);
-          const scaled = coordinates.map((v) => v*this.scale);
-
-          // Determine the centroid of the chunk this position falls into.
-          // getChunkCentroid is assumed to return an array-like coordinate (e.g. [x, y, z])
-          // which is also used as a key in the `chunks` object.
-          const centroid = getChunkCentroid(scaled, this.diameter).toString();
-
-          if (!this.chunks.has(centroid)) {
-            this.chunks.set(centroid, [new Map(), 0, 0, new Map()]);
-          }
-
-          const genes = this.chunks.get(centroid)[0];
-          if (!genes.has(family)) {
-            genes.set(family, [[], []]);
-          }
-          genes.get(family)[is_outlier ? 1 : 0].push(geneIndex);
-          this.chunks.get(centroid)[1] += !is_outlier;
-          this.chunks.get(centroid)[2] += is_outlier;
+          const memberType = is_outlier ? "outliers" : "inliers";
+          handleMember(family, coordinates, memberType, geneIndex);
         }
+        const familyCentroid = dataHandler.getCentroid(family, ...this.tissues);
+        handleMember(family, familyCentroid, "centroids");
       }
-
       this.active = calcActiveChunks(this, position);
     },
     load(state=true, centroid) {
@@ -64,11 +78,7 @@ export function getChunks(scene) {
       }
       if (state) {
         for (const [centroid, chunkData] of chunks) {
-          if (chunkData === undefined) {
-            this.chunks.set(centroid, [new Map(), 0, 0, new Map([ ["grid", create3DGridFromCentroidString(this, centroid)] ])]);
-            continue;
-          }
-          const [genes, inlierCount, outlierCount, meshes] = chunkData;
+          const [genes, counts, meshes] = chunkData;
 
           for (const [key, mesh] of meshes) {
             mesh.dispose();
@@ -76,18 +86,38 @@ export function getChunks(scene) {
           }
 
           meshes.set("grid", create3DGridFromCentroidString(this, centroid));
+          if (genes.size === 0) {
+            continue;
+          }
+
+          const ctx = {};
 
           // data points -- spheres
-          const sphereDimensionsBuffer = new Float32Array(16 * inlierCount); // the translation buffer for one position takes 16 entries (it is a 4x4 rotation matrix)
-          const sphereColorBuffer = new Float32Array(4 * inlierCount); // rgba
-          if (sphereColorBuffer.length > 0) { // false if all members are outliers
+          if (counts.inliers > 0) {
+            ctx.inliers = {
+              dimensionBuffer: new Float32Array(16 * counts.inliers), // the translation buffer for one position takes 16 entries (it is a 4x4 rotation matrix)
+              colorBuffer: new Float32Array(4 * counts.inliers), // rgba
+              bufferIndex: 0
+            }
             meshes.set("inliers", Mesh.Sphere(this.scene));
           }
 
+          if (counts.centroids > 0) {
+            ctx.centroids = {
+              dimensionBuffer: new Float32Array(16 * counts.centroids), // the translation buffer for one position takes 16 entries (it is a 4x4 rotation matrix)
+              colorBuffer: new Float32Array(4 * counts.centroids), // rgba
+              bufferIndex: 0
+            }
+            meshes.set("centroids", Mesh.Sphere(this.scene));
+          }
+
           // outliers -- octahedrons
-          const octDimensionsBuffer = new Float32Array(16 * outlierCount); // the translation buffer for one position takes 16 entries (it is a 4x4 rotation matrix)
-          const octColorBuffer = new Float32Array(4 * outlierCount); // rgba
-          if (outlierCount > 0) {
+          if (counts.outliers > 0) {
+            ctx.outliers = {
+              dimensionBuffer: new Float32Array(16 * counts.outliers), // the translation buffer for one position takes 16 entries (it is a 4x4 rotation matrix)
+              colorBuffer: new Float32Array(4 * counts.outliers), // rgba
+              bufferIndex: 0
+            }
             const mesh = Mesh.Octahedron(this.scene);
             mesh.enableEdgesRendering();
             mesh.edgesWidth = config.get("defaultDiameter") * 12;
@@ -96,50 +126,70 @@ export function getChunks(scene) {
             meshes.set("outliers", mesh);
           }
 
-          let inlierIndex = 0;
-          let outlierIndex = 0;
-          for (const [family, [inliers, outliers]] of genes) {
-            const familyColor = Color.FromHexString(config.get(`${family}_Color`) ?? dataHandler.getColor(family));
-            for (const geneIndex of inliers) {
-              const diameter = config.get(`${family}_Diameter`) ?? config.get("defaultDiameter");
-              const pointData = dataHandler.getGeneData(family, geneIndex, this.tissues, []);
-              fillThinInstanceBuffers(
-                sphereDimensionsBuffer, inlierIndex * 16,
-                sphereColorBuffer, inlierIndex * 4,
-                diameter,
-                pointData.coordinates.map(v => v * this.scale),
-                familyColor
-              );
-              inlierIndex++;
-            }
+          for (const [family, members] of genes) {
+            const colors = {
+              family: Color.FromHexString(config.get(`${family}_Color`) ?? dataHandler.getColor(family))
+            };
             const outlierColorHex = config.get(`${family}_OutlierColor`);
-            const outlierColor = outlierColorHex === undefined ? familyColor : Color.FromHexString(outlierColorHex);
-            for (const geneIndex of outliers) {
-              const pointData = dataHandler.getGeneData(family, geneIndex, this.tissues, []);
-              const diameter = config.get(`${family}_OutlierDiameter`) ?? config.get("defaultDiameter");
-              fillThinInstanceBuffers(
-                octDimensionsBuffer, outlierIndex * 16,
-                octColorBuffer, outlierIndex * 4,
-                diameter,
-                pointData.coordinates.map(v => v * this.scale),
-                outlierColor
-              );
-              outlierIndex++;
+            if (outlierColorHex !== undefined) {
+              colors.outliers = Color.FromHexString(outlierColorHex);
             }
-          }
-          if (inlierIndex !== inlierCount || outlierIndex !== outlierCount) {
-            console.error("Misfilled buffers", inlierIndex, inlierCount, outlierIndex, outlierCount);
+            const diameters = {
+              default: config.get(`defaultDiameter`),
+              inliers: config.get(`${family}_Diameter`),
+              outliers: config.get(`${family}_OutlierDiameter`)
+            }
+            for (const [memberType, geneIndices] of Object.entries(members)) {
+              const memberCtx = ctx[memberType];
+              if (memberType !== "centroids") {
+                for (const geneIndex of geneIndices) {
+                  const { coordinates } = dataHandler.getGeneData(family, geneIndex, this.tissues, []);
+                  const diameter = diameters[memberType] ?? diameters.default;
+                  fillThinInstanceBuffers(
+                    memberCtx.dimensionBuffer, memberCtx.bufferIndex * 16,
+                    {
+                      position: Vector(...coordinates.map(v => v * this.scale)),
+                      scaling: Vector(diameter, diameter, diameter)
+                    },
+                    memberCtx.colorBuffer, memberCtx.bufferIndex * 4,
+                    colors[memberType] ?? colors.family
+                  );
+                  memberCtx.bufferIndex++;
+                }
+              } else {
+                const show = config.get(`${family}_Centroid`);
+                if (show) {
+                  const coordinates = dataHandler.getCentroid(family, ...this.tissues);
+                  const diameter = (diameters.inliers ?? diameters.default) * 4;
+                  const color = colors.family.scale(2);
+                  color.a = 1;
+                  fillThinInstanceBuffers(
+                    memberCtx.dimensionBuffer, memberCtx.bufferIndex * 16,
+                    {
+                      position: Vector(...coordinates.map(v => v * this.scale)),
+                      scaling: Vector(diameter, diameter, diameter)
+                    },
+                    memberCtx.colorBuffer, memberCtx.bufferIndex * 4,
+                    color
+                  );
+                }
+                memberCtx.bufferIndex++;
+              }
+            }
           }
 
-          meshes.get("inliers")?.thinInstanceSetBuffer("matrix", sphereDimensionsBuffer, 16);
-          meshes.get("inliers")?.thinInstanceSetBuffer("color", sphereColorBuffer, 4);
-          meshes.get("outliers")?.thinInstanceSetBuffer("matrix", octDimensionsBuffer, 16);
-          meshes.get("outliers")?.thinInstanceSetBuffer("color", octColorBuffer, 4);
+          for (const [memberType, memberCtx] of Object.entries(ctx)) {
+            if (memberCtx.bufferIndex !== counts[memberType]) {
+              console.error(`Misfilled buffers: Expected ${memberCtx.bufferIndex} ${memberType}, got ${counts[memberType]}`);
+            }
+            const mesh = meshes.get(memberType);
+            mesh.thinInstanceSetBuffer("matrix", memberCtx.dimensionBuffer, 16);
+            mesh.thinInstanceSetBuffer("color", memberCtx.colorBuffer, 4);
+          }
         }
       } else {
-        for (const [centroid, chunkData] of chunks) {
-          if (chunkData[0].size > 0) {
-            const meshes = chunkData[3];
+        for (const [centroid, [genes, , meshes]] of chunks) {
+          if (genes.size > 0) {
             for (const [key, mesh] of meshes) {
               mesh.dispose();
               meshes.delete(key);
@@ -170,6 +220,7 @@ function calcActiveChunks(chunks, [posX, posY, posZ]) {
           Math.abs(centroid[1] - posY) < chunks.sight &&
           Math.abs(centroid[2] - posZ) < chunks.sight
         ) {
+          chunks.initChunk(centroid.toString());
           activeChunks.push(centroid.toString());
         }
       }
@@ -213,24 +264,24 @@ function registerLoading(chunks) {
   });
 }
 
-function fillThinInstanceBuffers(dimensionsBuffer, dIndex, colorBuffer, cIndex, diameter, [x, y, z], color) {
-  dimensionsBuffer[dIndex] = diameter; // set x scale
-  dimensionsBuffer[dIndex + 5] = diameter; // set y scale
-  dimensionsBuffer[dIndex + 10] = diameter; // set z scale
+// function fillThinInstanceBuffers(dimensionsBuffer, dIndex, colorBuffer, cIndex, diameter, [x, y, z], color) {
+//   dimensionsBuffer[dIndex] = diameter; // set x scale
+//   dimensionsBuffer[dIndex + 5] = diameter; // set y scale
+//   dimensionsBuffer[dIndex + 10] = diameter; // set z scale
 
-  dimensionsBuffer[dIndex + 12] = x;
-  dimensionsBuffer[dIndex + 13] = y;
-  dimensionsBuffer[dIndex + 14] = z;
+//   dimensionsBuffer[dIndex + 12] = x;
+//   dimensionsBuffer[dIndex + 13] = y;
+//   dimensionsBuffer[dIndex + 14] = z;
 
-  dimensionsBuffer[dIndex + 15] = 1;
-  // the unchanged indices affect the rotation of the sphere -> zero 
+//   dimensionsBuffer[dIndex + 15] = 1;
+//   // the unchanged indices affect the rotation of the sphere -> zero 
 
-  // setting color
-  colorBuffer[cIndex++] = color.r;
-  colorBuffer[cIndex++] = color.g;
-  colorBuffer[cIndex++] = color.b;
-  colorBuffer[cIndex] = color.a;
-}
+//   // setting color
+//   colorBuffer[cIndex++] = color.r;
+//   colorBuffer[cIndex++] = color.g;
+//   colorBuffer[cIndex++] = color.b;
+//   colorBuffer[cIndex] = color.a;
+// }
 
 function getChunkCentroid([ x, y, z ], diameter) {
   function trim(a) {
@@ -272,5 +323,7 @@ function create3DGridFromCentroidString(chunks, centroid) {
 
   const grid = BABYLON.MeshBuilder.CreateLineSystem(null, { lines }, chunks.scene);
   grid.color = Color(.5, .5, .5);
+  grid.freezeWorldMatrix();
+  grid.isPickable = false; 
   return grid;
 }

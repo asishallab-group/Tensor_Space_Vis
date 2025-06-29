@@ -4,13 +4,17 @@ html, body {
   height: 100%;
   margin: 0;
   overflow: hidden;
+
+  /* Disable selection of anything, as everything happens 'inside' the canvas */
+  -webkit-user-select: none; /* Safari */
+  -ms-user-select: none; /* IE 10, 11 */
+  user-select: none;
 }
 /* The canvas occupies the full screen – note the id "view" as required */
 #view {
   width: 100%;
   height: 100%;
   touch-action: none; /* Disable touch actions to improve pointer drag support */
-  user-select: none;
 }
 /* Style for the tooltip that shows point data on hover */
 .tooltip {

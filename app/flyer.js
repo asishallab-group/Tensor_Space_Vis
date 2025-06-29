@@ -293,7 +293,7 @@ function captureScenes(engine, ...scenes) {
             captureScene(scenes, i+1);
           };
         },
-        "image/png", 1, true, null, true, true
+        "image/png", 1, false, null, true, true, true, 4
       );
       if (!autoClear) {
         scene.autoClear = false;

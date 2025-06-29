@@ -92,7 +92,7 @@ function setupConfig() {
           callbacks[key]?.(value);
 
           // when changing family related stuff (like <familyname>_Color) or other things that need to trigger a chunk reload
-          if (key.includes("_") || triggersChunkReload.includes(key)) {
+          if (key.includes("_") || triggersChunkReload.includes(key) || /_ShiftVector:\d+/.test(key)) {
             document.dispatchEvent(new CustomEvent("chunkReload", {
               detail: { setting: key }
             }));
@@ -222,6 +222,12 @@ function getValidator() {
       } else if (key.endsWith("Color")) {
         if (!/^#[A-Fa-f0-9]{6}(?:[A-Fa-f0-9]{2})?$/.test(value)) {
           console.error(`${key}: Expecting RGB(A) hex color code, got: ${value}`);
+          return;
+        }
+        return true;
+      } else if (key.endsWith("_Centroid") || key.endsWith("_Hull") || /_ShiftVector:\d+/.test(key)) {
+        if (typeof value !== "boolean") {
+          console.error(`${key}: Expecting boolean value, got: ${typeof v}`);
           return;
         }
         return true;
