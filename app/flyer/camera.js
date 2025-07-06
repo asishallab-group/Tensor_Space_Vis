@@ -1,6 +1,6 @@
 "use strict";
 
-import { Vector, UniversalCam, OrbitCam, calcVectorDistance, Material, Color } from "./babylon.js";
+import { Vector, UniversalCam, OrbitCam, Material, Color } from "./babylon.js";
 
 /**
  * Function: setupCamera
@@ -165,7 +165,7 @@ function setupOrbitView(scene) {
             sumY / numInstances,
             sumZ / numInstances
         );
-        radius = calcVectorDistance(target, scene.activeCamera.position);
+        radius = Vector.Distance(target, scene.activeCamera.position);
       }
       scene.switchActiveCamera(orbitCamera);
       orbitCamera.setTarget(target);

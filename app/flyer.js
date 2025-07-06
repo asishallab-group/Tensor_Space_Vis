@@ -1,9 +1,10 @@
 "use strict";
 
 import { handler as dataHandler } from "./dataHandler.js";
-import { config } from "./config.js";
+import { setupConfig } from "./config.js";
 import { plotData } from "./flyer/plotData.js";
 import { setupCamera } from "./flyer/camera.js";
+import { setupGUI } from "./flyer/gui.js";
 import {
   WebGPUEngine,
   WebGLEngine,
@@ -327,10 +328,12 @@ async function main() {
       configurable: false // Prevents deletion
     });
     Object.defineProperty(window, "config", {
-      value: config,
+      value: await setupConfig(),
       writable: false, // Prevents modification
       configurable: false // Prevents deletion
     });
+
+    setupGUI();
     const canvas = configureCanvas("view");
     const engine = await initializeEngine(canvas);
     const scene = setupScene(engine, canvas);

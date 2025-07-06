@@ -1,12 +1,12 @@
 "use strict";
 
 import { getChunks } from "./chunks.js";
+import { createTooltip, removeTooltip } from "./gui.js";
 import {
   Mesh,
   Color,
   Vector,
   TransformNode,
-  calcVectorDistance,
   Material,
   fillThinInstanceBuffers
 } from "./babylon.js";
@@ -39,23 +39,62 @@ function plotData(scene) {
   let picked = null;
   scene.onPointerObservable.add((evt) => {
     switch (evt.type) {
+      case BABYLON.PointerEventTypes.POINTERDOWN:
+        removeTooltip();
+        break;
       case BABYLON.PointerEventTypes.POINTERTAP:
         picked = pickFromMeshes(chunks);
         if (picked !== null) {
-          const selected = scene.getMeshByName("meshSelectedPoints");
-          if (!selected.TOX_unpick(picked.family, picked.geneIndex)) {
-            selected.TOX_pick(picked.family, picked.geneIndex);
+          switch (picked.type) {
+            case "gene": {
+              const selected = scene.getMeshByName("meshSelectedPoints");
+              if (!selected.TOX_unpick(picked.family, picked.geneIndex)) {
+                selected.TOX_pick(picked.family, picked.geneIndex);
+                const geneData = dataHandler.getGeneData(picked.family, picked.geneIndex, chunks.tissues, ["genes", "species"]);
+                createTooltip(evt.event.clientX, evt.event.clientY,
+                  "Data Point<table><tbody>" +
+                  `<tr><td>Gene:</td><td>${geneData.genes}</td></tr>` +
+                  `<tr><td>Species:</td><td>${geneData.species}</td></tr>` +
+                  `<tr><td>${chunks.tissues[0]}:</td><td>${geneData.coordinates[0].toFixed(2)}</td></tr>` +
+                  `<tr><td>${chunks.tissues[1]}:</td><td>${geneData.coordinates[1].toFixed(2)}</td></tr>` +
+                  `<tr><td>${chunks.tissues[2]}:</td><td>${geneData.coordinates[2].toFixed(2)}</td></tr>` +
+                  "</tbody></table>"
+                );
+              }
+              break;
+            }
+            case "centroid": {
+              const centroid = dataHandler.getCentroid(picked.family, ...chunks.tissues);
+              createTooltip(evt.event.clientX, evt.event.clientY,
+                "Centroid<table><tbody>" +
+                `<tr><td>Family:</td><td>${dataHandler.getFamilyIDs(picked.family)[0]}</td></tr>` +
+                `<tr><td>${chunks.tissues[0]}:</td><td>${centroid[0].toFixed(2)}</td></tr>` +
+                `<tr><td>${chunks.tissues[1]}:</td><td>${centroid[1].toFixed(2)}</td></tr>` +
+                `<tr><td>${chunks.tissues[2]}:</td><td>${centroid[2].toFixed(2)}</td></tr>` +
+                "</tbody></table>"
+              );
+            }
           }
+        } else {
+          removeTooltip();
         }
         break;
       case BABYLON.PointerEventTypes.POINTERDOUBLETAP:
         if (picked !== null) {
           const selected = scene.getMeshByName("meshSelectedPoints");
-          const wasSelected = selected.TOX_unpick(picked.family, picked.geneIndex);
-          if (!wasSelected) {
+
+          // if unpick was successful, so it was picked already, the original pick was initiated by the simultaneously triggered POINTERTAP
+          const wasUnselected = selected.TOX_unpick(picked.family, picked.geneIndex);
+          if (!wasUnselected) {
             selected.TOX_unpick(picked.family);
           } else {
             selected.TOX_pick(picked.family);
+            createTooltip(evt.event.clientX, evt.event.clientY,
+              "Family<table><tbody>" +
+              `<tr><td>Family:</td><td>${dataHandler.getFamilyIDs(picked.family)[0]}</td></tr>` +
+              `<tr><td>Members:</td><td>${dataHandler.getGeneCount(picked.family)}</td></tr>` +
+              "</tbody></table>"
+            );
           }
         }
         break;
@@ -83,12 +122,11 @@ function setupFamilyHullMesh(scene) {
       // calculate farthest data point from centroid
       let farthestSpherePos = centroid;
       let farthestDist = 0;
-      const geneCount = dataHandler.getGeneCount(family);
-      for (let geneIndex = 0; geneIndex < geneCount; geneIndex++) {
+      for (const geneIndex of dataHandler.genes(family)) {
         const { is_outlier, coordinates } = dataHandler.getGeneData(family, geneIndex, tissues, ["is_outlier"]);
         if (!is_outlier) {
           const genePos = Vector(...coordinates.map(v => v*scale));
-          const distance = calcVectorDistance(centroid, genePos)
+          const distance = Vector.Distance(centroid, genePos)
           if (distance > farthestDist) {
             farthestDist = distance;
             farthestSpherePos = genePos;
@@ -96,14 +134,28 @@ function setupFamilyHullMesh(scene) {
         }
       }
 
-      // calculate farthest point from line centroid-farthestSphere
-      const lengthVector = farthestSpherePos.subtract(centroid).normalize();
-      let radius = 0;
-      for (let geneIndex = 0; geneIndex < geneCount; geneIndex++) {
+      let otherEnd = farthestSpherePos;
+      farthestDist = 0;
+      for (const geneIndex of dataHandler.genes(family)) {
         const { is_outlier, coordinates } = dataHandler.getGeneData(family, geneIndex, tissues, ["is_outlier"]);
         if (!is_outlier) {
           const genePos = Vector(...coordinates.map(v => v*scale));
-          const centroidToGene = genePos.subtract(centroid);
+          const distance = Vector.Distance(farthestSpherePos, genePos)
+          if (distance > farthestDist) {
+            farthestDist = distance;
+            otherEnd = genePos;
+          }
+        }
+      }
+
+      // calculate farthest point from line centroid-farthestSphere
+      const lengthVector = farthestSpherePos.subtract(otherEnd).normalize();
+      let radius = 0;
+      for (const geneIndex of dataHandler.genes(family)) {
+        const { is_outlier, coordinates } = dataHandler.getGeneData(family, geneIndex, tissues, ["is_outlier"]);
+        if (!is_outlier) {
+          const genePos = Vector(...coordinates.map(v => v*scale));
+          const centroidToGene = genePos.subtract(otherEnd);
           const projectionLength = BABYLON.Vector3.Dot(centroidToGene, lengthVector);
           const projectionVector = lengthVector.scale(projectionLength);
           const heightVector = centroidToGene.subtract(projectionVector);
@@ -114,14 +166,14 @@ function setupFamilyHullMesh(scene) {
         }
       }
 
-      const length = 2*(farthestDist + sphereDiameter);
-      const width = 3*(radius + sphereDiameter);
+      const length = 2 * (Vector.Distance(farthestSpherePos, otherEnd) / 2 + sphereDiameter);
+      const width = 3 * (radius + sphereDiameter);
 
       const color = Color(config.get(family + "_Color") ?? dataHandler.getColor(family)).scale(2);
       fillThinInstanceBuffers(
         dimensionsBuffer, i * 16,
         {
-          position: centroid,
+          position: farthestSpherePos.add(otherEnd).scale(0.5),
           scaling: Vector(width, length, width),
           target: farthestSpherePos
         },
@@ -141,8 +193,7 @@ function setupShiftVectorMesh(scene) {
 
   const families = config.get("shownFamilies") ?? dataHandler.families;
   const vectorCount = families.reduce((a, family) => {
-    const geneCount = dataHandler.getGeneCount(family);
-    for (let geneIndex = 0; geneIndex < geneCount; geneIndex++) {
+    for (const geneIndex of dataHandler.genes(family)) {
       if (config.get(`${family}_ShiftVector:${geneIndex}`)) {
         a++;
       }
@@ -154,10 +205,10 @@ function setupShiftVectorMesh(scene) {
     const tissues = [config.get("tissueX"), config.get("tissueY"), config.get("tissueZ")];
 
     const dimensionBuffers = {
-      shaft: new Float32Array(families.length * 16),
-      head: new Float32Array(families.length * 16)
+      shaft: new Float32Array(vectorCount * 16),
+      head: new Float32Array(vectorCount * 16)
     }
-    const colorBuffer = new Float32Array(families.length * 4);
+    const colorBuffer = new Float32Array(vectorCount * 4);
 
     let bufferIndex = 0;
     for (const family of families) {
@@ -166,16 +217,15 @@ function setupShiftVectorMesh(scene) {
       const centroid = Vector(...dataHandler.getCentroid(family, ...tissues).map(v => v*scale));
       const sphereDiameter = config.get(`${family}_Diameter`) ?? config.get("defaultDiameter");
 
-      const geneCount = dataHandler.getGeneCount(family);
-      for (let geneIndex = 0; geneIndex < geneCount; geneIndex++) {
+      for (const geneIndex of dataHandler.genes(family)) {
         if (config.get(`${family}_ShiftVector:${geneIndex}`)) {
           const { coordinates } = dataHandler.getGeneData(family, geneIndex, tissues, []);
           const genePos = Vector(...coordinates.map(v => v*scale));
           const direction = genePos.subtract(centroid);
-          const vectorLength = direction.length();
-          const shaftLengthScale = 1 - 2.5 * sphereDiameter / vectorLength;
+          const vectorLength = direction.length() - sphereDiameter / 2;
+          const shaftLengthScale = 1 - 2 * sphereDiameter / vectorLength;
           const shaftPosition = centroid.add(direction.scale(shaftLengthScale / 2));
-          const headPosition = centroid.add(direction.scale(1 - 1.5 * sphereDiameter / vectorLength));
+          const headPosition = centroid.add(direction.scale(shaftLengthScale + sphereDiameter / vectorLength / 2));
 
           // create shaft
           fillThinInstanceBuffers(
@@ -208,13 +258,14 @@ function setupShiftVectorMesh(scene) {
     shiftVectorShaft.thinInstanceSetBuffer("color", colorBuffer, 4);
     const shiftVectorHead = BABYLON.MeshBuilder.CreateCylinder("shiftVectorHead", {height: 1, diameterTop: 0}, scene);
     shiftVectorHead.thinInstanceSetBuffer("matrix", dimensionBuffers.head, 16);
-    shiftVectorHead.thinInstanceSetBuffer("color", new Float32Array(colorBuffer), 4);
+    shiftVectorHead.thinInstanceSetBuffer("color", colorBuffer, 4);
   }
 }
 
 function setupSelectionMesh(scene) {
   const highlightLayer = new BABYLON.HighlightLayer("highlight", scene);
   const meshSelectedPoints = Mesh.Sphere(scene, "meshSelectedPoints");
+  meshSelectedPoints.TOX_type = "gene";
 
   config.setSetterCallback("selectedDataPointColor", hexColorCode => {
     highlightLayer.removeMesh(meshSelectedPoints);
@@ -234,6 +285,8 @@ function setupSelectionMesh(scene) {
     const tissues = [config.get("tissueX"), config.get("tissueY"), config.get("tissueZ")];
 
     const pickOne = (geneIndex) => {
+      document.dispatchEvent(new CustomEvent("pick", { detail: { family, gene: geneIndex, type: this.TOX_type } }));
+
       const { is_outlier, coordinates } = dataHandler.getGeneData(family, geneIndex, tissues, ["is_outlier"]);
       const instance = this.createInstance();
       instance.position = Vector(...coordinates.map(v => v * scale));
@@ -248,8 +301,7 @@ function setupSelectionMesh(scene) {
     if (geneIndex !== undefined) {
       pickOne(geneIndex);
     } else {
-      const geneCount = dataHandler.getGeneCount(family);
-      for (let geneIndex = 0; geneIndex < geneCount; geneIndex++) {
+      for (const geneIndex of dataHandler.genes(family)) {
         pickOne(geneIndex);
       }
     }
@@ -261,6 +313,7 @@ function setupSelectionMesh(scene) {
       if (this.instances.length === 1) {
         highlightLayer.isEnabled = false;
       }
+      document.dispatchEvent(new CustomEvent("unpick", { detail: { family: instance.TOX_family, gene: instance.TOX_geneIndex, type: this.TOX_type } }));
       instance.dispose();
     }
     return instances.length;
@@ -326,7 +379,7 @@ function pickFromMeshes(chunks) {
           { center: spherePosition, radius: matrix[0] / 2 }
         );
         if (intersects) {
-          const distance = calcVectorDistance(chunks.scene.activeCamera.position, spherePosition);
+          const distance = Vector.Distance(chunks.scene.activeCamera.position, spherePosition);
           if (distance < closestDist) {
             closestDist = distance;
             picked = {
@@ -347,16 +400,20 @@ function pickFromMeshes(chunks) {
     let pickedIndex = picked.index;
     switch (picked.meshType) {
       case "centroids": {
+        picked.type = "centroid";
         for (const [family, members] of genes) {
           if (pickedIndex === 0) {
             console.log(`Picked centroid of family '${family}'`);
-            return null;
+            picked.family = family;
+            break;
           }
           pickedIndex -= Boolean(members.centroids)
         }
+        break;
       }
       case "inliers":
       case "outliers": {
+        picked.type = "gene";
         for (const [family, members] of genes) {
           const indices = members[picked.meshType];
           if (indices) {
@@ -368,47 +425,11 @@ function pickFromMeshes(chunks) {
             }
           }
         }
+        break;
       }
     }
   }
   return picked;
-}
-
-/***************************************************************
- * Function: setupTooltipFollow
- * Purpose: Make the tooltip div follow the mouse pointer.
- * - Listens for mousemove events on the canvas.
- * - Offsets the tooltip by a few pixels from the pointer for better visibility.
- ***************************************************************/
-function setupTooltip(scene, mesh) {
-  // Register a hover action to display a tooltip with the data values.
-  const datapointDiv = document.getElementById("datapoint");
-  mesh.actionManager.registerAction(
-    new BABYLON.ExecuteCodeAction(BABYLON.ActionManager.OnPointerOverTrigger, function (evt) {
-      const dataPoint = evt.source;
-      if (dataPoint) {
-        datapointDiv.style.display = "block";
-        document.body.style.cursor = "pointer";
-        // Format the tooltip content with two decimal places.
-        datapointDiv.innerHTML = "x: " + dataPoint.position.x.toFixed(2) + 
-                               "<br>y: " + dataPoint.position.y.toFixed(2) + 
-                               "<br>z: " + dataPoint.position.z.toFixed(2);
-      }
-    })
-  );
-
-  // Hide the tooltip when the pointer leaves the sphere.
-  mesh.actionManager.registerAction(
-    new BABYLON.ExecuteCodeAction(BABYLON.ActionManager.OnPointerOutTrigger, function () {
-      datapointDiv.style.display = "none";
-      document.body.style.cursor = "unset";
-    })
-  );
-
-  scene.getEngine().getRenderingCanvas().addEventListener("mousemove", function (evt) {
-    datapointDiv.style.left = (evt.clientX + 10) + "px";
-    datapointDiv.style.top = (evt.clientY + 10) + "px";
-  });
 }
 
 export { plotData };

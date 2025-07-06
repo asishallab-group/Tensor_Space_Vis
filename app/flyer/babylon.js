@@ -3,6 +3,9 @@
 export function Vector(x=0, y=0, z=0) {
   return new BABYLON.Vector3(x, y, z);
 }
+Vector.Distance = function (v1, v2) {
+  return v1.subtract(v2).length();
+}
 
 export const Mesh = {
   Sphere(scene, name, options={}) {
@@ -39,10 +42,6 @@ export function OrbitCam(scene, name) {
 
 export function UniversalCam(scene, name) {
   return new BABYLON.UniversalCamera(name, Vector(), scene);
-}
-
-export function calcVectorDistance(v1, v2) {
-  return BABYLON.Vector3.Distance(v1, v2);
 }
 
 export function WebGPUEngine(canvas, options) {

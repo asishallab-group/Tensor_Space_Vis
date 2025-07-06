@@ -57,8 +57,7 @@ export function getChunks(scene) {
       // For each family, iterate through the genes for specific tissues
       // and create an instance of the outlier mesh for each data point.
       for (const family of this.families) {
-        const geneCount = dataHandler.getGeneCount(family);
-        for (let geneIndex = 0; geneIndex < geneCount; geneIndex++) {
+        for (const geneIndex of dataHandler.genes(family)) {
           const { coordinates, is_outlier } = dataHandler.getGeneData(family, geneIndex, this.tissues, ["is_outlier"]);
           const memberType = is_outlier ? "outliers" : "inliers";
           handleMember(family, coordinates, memberType, geneIndex);

@@ -1,7 +1,7 @@
 /* Ensure full size for the HTML body and remove scrollbars */
 html, body {
-  width: 100%;
-  height: 100%;
+  width: 100vw;
+  height: 100vh;
   margin: 0;
   overflow: hidden;
 
@@ -10,10 +10,17 @@ html, body {
   -ms-user-select: none; /* IE 10, 11 */
   user-select: none;
 }
+
+main {
+  width: inherit;
+  height: inherit;
+  position: relative;
+}
+
 /* The canvas occupies the full screen – note the id "view" as required */
 #view {
-  width: 100%;
-  height: 100%;
+  width: inherit;
+  height: inherit;
   touch-action: none; /* Disable touch actions to improve pointer drag support */
 }
 /* Style for the tooltip that shows point data on hover */
@@ -23,7 +30,92 @@ html, body {
   background: rgba(0, 0, 0, 0.7);
   color: white;
   border-radius: 5px;
-  display: none;
+  display: block;
   pointer-events: none;
   font-size: 12px;
+}
+
+#UI {
+  * {
+    -webkit-user-select: text; /* Safari */
+    -ms-user-select: text; /* IE 10, 11 */
+    user-select: text;
+  }
+
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 10; /* Higher than canvas */
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none; /* Allows UI interaction */
+
+  display: grid;
+  grid-template-areas:
+    "top-left top-left .      top-right top-right"
+    ".        .        .      .         mid-right"
+    ".        .        .      .         mid-right"
+    ".        .        .      .         mid-right"
+    ".        .        .      .         .        ";
+  gap: 1rem;
+  padding: 1rem;
+}
+
+#UI > * {
+  border-radius: 2pc;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+  pointer-events: auto;
+}
+
+#UI > dialog {
+  grid-area: dialog;
+  width: 60%;
+  height: 60%;
+}
+
+#UI > #mid-right {
+  grid-area: mid-right;
+  display: flex;
+  flex-direction: column-reverse;
+  box-shadow: none;
+  height: 65%;
+  align-items: flex-end;
+  margin-right: 2vw;
+}
+
+#mid-right > * {
+  padding: inherit;
+  border-radius: 1pc;
+  box-shadow: inherit;
+  width: fit-content;
+  font-size: 3vh;
+  margin-right: 1vw;
+  font-weight: bold;
+  padding: 1%;
+}
+
+#UI > #top-left {
+  grid-area: top-left;
+  display: flex;
+  box-shadow: none;
+}
+
+#top-left > * {
+  height: 1%;
+}
+
+#pickedDetailsMenu {
+  display: flex;
+  justify-content: center;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+#pickedDetailsMenu li {
+  margin-right: 20px;
+}
+
+#pickedDetailsMenu li:last-child {
+  margin-right: 0;
 }

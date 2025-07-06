@@ -6,40 +6,70 @@ const data = await (await fetch("./app/sampleData.json")).json();
 
 export const handler = {
   get families() {
-    return Object.keys(data);
+    return Array.from({ length: this.getFamilyCount() }, (_, i) => i);
+  },
+  genes(familyIdx) {
+    return Array.from({ length: this.getGeneCount(familyIdx) }, (_, i) => i);
   },
   get tissues() {
     return Object.keys(
-      data[this.families[0]]?.[tissues] ?? {}
-    )
+      data[0]?.tissues ?? {}
+    );
   },
-  getGeneCount(family) {
-    return data[family]?.genes.length;
+  getFamilyIndices(...familyIDs) {
+    familyIDs = new Set(familyIDs);
+    const indices = {};
+    for (let i = 0; i < data.length; i++) {
+      const family = data[i].family;
+      if (familyIDs.delete(family)) {
+        indices[family] = i;
+      }
+      if (familyIDs.size === 0) {
+        break;
+      }
+    }
+    return indices;
   },
-  getColor(family) {
+  getFamilyIDs(...familyIndices) {
+    return familyIndices.map(f => data[f]?.family);
+  },
+  getFamilyCount() {
+    return data.length;
+  },
+  getGeneCount(familyIdx) {
+    return data[familyIdx]?.genes.length;
+  },
+  getColor(familyIdx) {
     // using the checksum of the family name as color code
-    const value = crc32(family) & (8**6-1); // mask the bits to have a number that is between octal 0-777777, a range of around 260k values
-    const shift = config.get("darkMode") ? 3 : 7;
-    const hexString = value.toString(8).padStart(6, "0");
+    const familyID = data[familyIdx]?.family;
+    if (familyID !== undefined) {
+      const value = crc32(familyID) & (8**6-1); // mask the bits to have a number that is between octal 0-777777, a range of around 260k values
+      const shift = config.get("darkMode") ? 3 : 7;
+      const hexString = value.toString(8).padStart(6, "0");
 
-    // shift the numbers, so in darkmode the color consists of numbers between 3-9 and in lightMode between 9-F
-    // why shifting? because brighter colors are ugly in darkmode and vice versa
-    return "#" + hexString.replace(/[0-7]/g, char => (Number(char) + shift).toString(16)).toUpperCase();
+      // shift the numbers, so in darkmode the color consists of numbers between 3-9 and in lightMode between 9-F
+      // why shifting? because brighter colors are ugly in darkmode and vice versa
+      return "#" + hexString.replace(/[0-7]/g, char => (Number(char) + shift).toString(16)).toUpperCase();
+    }
   },
-  getCentroid(family, ...tissues) {
+  getCentroid(familyIdx, ...tissues) {
     return tissues.map((tissue) => {
-      return data[family]?.centroid[tissue];
+      return data[familyIdx]?.centroid[tissue];
     });
   },
-  getGeneData: function (family, geneIndex, tissues=null, attributes=null) {
+  getGeneData: function (familyIdx, geneIndex, tissues=null, attributes=null) {
     tissues ??= this.tissues;
 
-    const familyData = data[family];
+    const familyData = data[familyIdx];
     if (familyData !== undefined) {
       const geneData = {};
       attributes ??= Object.keys(familyData).slice(0, -2); // without 'centroid' and 'tissues'
       for (const key of attributes) {
-        geneData[key] = familyData[key][geneIndex];
+        if (typeof familyData[key] === "object") {
+          geneData[key] = familyData[key][geneIndex];
+        } else {
+          geneData[key] = familyData[key];
+        }
       }
       geneData.coordinates = tissues.map((tissue) => {
         return familyData.tissues[tissue]?.[geneIndex];
