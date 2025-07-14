@@ -9,6 +9,7 @@ html, body {
   -webkit-user-select: none; /* Safari */
   -ms-user-select: none; /* IE 10, 11 */
   user-select: none;
+  tab
 }
 
 main {
@@ -39,8 +40,10 @@ main {
   -webkit-user-select: auto; /* Safari */
   -ms-user-select: auto; /* IE 10, 11 */
   user-select: auto;
+  pointer-events: auto;
 }
 .clickable {
+  pointer-events: auto;
   cursor: pointer;
 }
 
@@ -67,7 +70,6 @@ main {
 #UI > * {
   border-radius: 2pc;
   box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-  pointer-events: auto;
 }
 
 #UI > dialog {

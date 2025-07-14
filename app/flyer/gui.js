@@ -200,7 +200,7 @@ function getDetailsTableDataMap() {
       { title: "Family", data(geneData) {return geneData["family"]} }
     ],
     "centroid": [
-      { title: "Family", data(geneData) {return geneData["family"]} },
+      links.family,
       { configKey: "tissueX", data: getTissueData},
       { configKey: "tissueY", data: getTissueData},
       { configKey: "tissueZ", data: getTissueData}
@@ -215,7 +215,7 @@ function showSingleDetails(geneData, value, headerMap) {
   });
   a.addEventListener("click", evt => {
     evt.preventDefault();
-    const table = createElement("table", { classes: ["datatable"] });
+    const table = createElement("table", { classes: ["datatable", "textselect"] });
     const tBody = createElement("tbody");
     for (const header of headerMap) {
       const tr = createElement("tr", {
