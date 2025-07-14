@@ -35,13 +35,16 @@ main {
   font-size: 12px;
 }
 
-#UI {
-  * {
-    -webkit-user-select: text; /* Safari */
-    -ms-user-select: text; /* IE 10, 11 */
-    user-select: text;
-  }
+.textselect {
+  -webkit-user-select: auto; /* Safari */
+  -ms-user-select: auto; /* IE 10, 11 */
+  user-select: auto;
+}
+.clickable {
+  cursor: pointer;
+}
 
+#UI {
   position: absolute;
   top: 0;
   left: 0;
@@ -118,4 +121,56 @@ main {
 
 #pickedDetailsMenu li:last-child {
   margin-right: 0;
+}
+
+
+/* Pretty Table Styling */
+.datatable {
+  border-collapse: collapse;
+  width: 100%;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-size: 0.95rem;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+}
+
+.datatable thead {
+  background-color: #2c3e50;
+  color: #ecf0f1;
+  text-align: left;
+}
+
+.datatable thead th {
+  padding: 12px 16px;
+  border-bottom: 2px solid #34495e;
+}
+
+.datatable tbody tr {
+  border-bottom: 1px solid #ddd;
+  transition: background-color 0.3s ease;
+}
+
+.datatable tbody tr:hover {
+  background-color: #f1f1f1;
+}
+
+.datatable tbody td {
+  padding: 10px 16px;
+  color: #333;
+}
+
+/* Zebra striping for readability */
+.datatable tbody tr:nth-child(even) {
+  background-color: #f9f9f9;
+}
+
+/* Optional: rounded corners on the top row */
+.datatable thead:first-child th:first-child {
+  border-top-left-radius: 8px;
+}
+.datatable thead:first-child th:last-child {
+  border-top-right-radius: 8px;
+}
+
+.center {
+  text-align: center;
 }

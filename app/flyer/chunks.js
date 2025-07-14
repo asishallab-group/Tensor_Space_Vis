@@ -62,7 +62,7 @@ export function getChunks(scene) {
           const memberType = is_outlier ? "outliers" : "inliers";
           handleMember(family, coordinates, memberType, geneIndex);
         }
-        const familyCentroid = dataHandler.getCentroid(family, ...this.tissues);
+        const familyCentroid = dataHandler.getFamilyData(family, ...this.tissues).centroid;
         handleMember(family, familyCentroid, "centroids");
       }
       this.active = calcActiveChunks(this, position);
@@ -129,6 +129,9 @@ export function getChunks(scene) {
             const colors = {
               family: Color.FromHexString(config.get(`${family}_Color`) ?? dataHandler.getColor(family))
             };
+            colors.centroids = colors.family.scale(2);
+            colors.centroids.a /= 2;
+
             const outlierColorHex = config.get(`${family}_OutlierColor`);
             if (outlierColorHex !== undefined) {
               colors.outliers = Color.FromHexString(outlierColorHex);
@@ -138,48 +141,46 @@ export function getChunks(scene) {
               inliers: config.get(`${family}_Diameter`),
               outliers: config.get(`${family}_OutlierDiameter`)
             }
+            diameters.centroids = diameters.inliers;
+
             for (const [memberType, geneIndices] of Object.entries(members)) {
               const memberCtx = ctx[memberType];
+              const diameter = diameters[memberType] ?? diameters.default;
+              const color = colors[memberType] ?? colors.family;
+
+              const addInstance = (coordinates, diameter) => {
+                fillThinInstanceBuffers(
+                  memberCtx.dimensionBuffer, memberCtx.bufferIndex * 16,
+                  {
+                    position: Vector(...coordinates.map(v => v * this.scale)),
+                    scaling: Vector(diameter, diameter, diameter)
+                  },
+                  memberCtx.colorBuffer, memberCtx.bufferIndex * 4,
+                  color
+                );
+                memberCtx.bufferIndex++;
+              }
+
               if (memberType !== "centroids") {
                 for (const geneIndex of geneIndices) {
                   const { coordinates } = dataHandler.getGeneData(family, geneIndex, this.tissues, []);
-                  const diameter = diameters[memberType] ?? diameters.default;
-                  fillThinInstanceBuffers(
-                    memberCtx.dimensionBuffer, memberCtx.bufferIndex * 16,
-                    {
-                      position: Vector(...coordinates.map(v => v * this.scale)),
-                      scaling: Vector(diameter, diameter, diameter)
-                    },
-                    memberCtx.colorBuffer, memberCtx.bufferIndex * 4,
-                    colors[memberType] ?? colors.family
-                  );
-                  memberCtx.bufferIndex++;
+                  addInstance(coordinates, diameter);
                 }
               } else {
                 const show = config.get(`${family}_Centroid`);
                 if (show) {
-                  const coordinates = dataHandler.getCentroid(family, ...this.tissues);
-                  const diameter = (diameters.inliers ?? diameters.default) * 4;
-                  const color = colors.family.scale(2);
-                  color.a = 1;
-                  fillThinInstanceBuffers(
-                    memberCtx.dimensionBuffer, memberCtx.bufferIndex * 16,
-                    {
-                      position: Vector(...coordinates.map(v => v * this.scale)),
-                      scaling: Vector(diameter, diameter, diameter)
-                    },
-                    memberCtx.colorBuffer, memberCtx.bufferIndex * 4,
-                    color
-                  );
+                  const coordinates = dataHandler.getFamilyData(family, ...this.tissues).centroid;
+                  addInstance(coordinates, diameter * 4);
+                } else {
+                  memberCtx.bufferIndex++;
                 }
-                memberCtx.bufferIndex++;
               }
             }
           }
 
           for (const [memberType, memberCtx] of Object.entries(ctx)) {
             if (memberCtx.bufferIndex !== counts[memberType]) {
-              console.error(`Misfilled buffers: Expected ${memberCtx.bufferIndex} ${memberType}, got ${counts[memberType]}`);
+              console.error(`Misfilled buffers: Expected ${counts[memberType]} ${memberType}, got ${memberCtx.bufferIndex}`);
             }
             const mesh = meshes.get(memberType);
             mesh.thinInstanceSetBuffer("matrix", memberCtx.dimensionBuffer, 16);

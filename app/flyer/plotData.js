@@ -8,7 +8,8 @@ import {
   Vector,
   TransformNode,
   Material,
-  fillThinInstanceBuffers
+  fillThinInstanceBuffers,
+  getInstanceMatrix
 } from "./babylon.js";
 
 /**
@@ -22,7 +23,7 @@ import {
  * @param {BABYLON.Scene} scene - The BabylonJS scene in which to plot the data.
  */
 function plotData(scene) {
-  setupSelectionMesh(scene);
+  setupSelectionMeshes(scene);
   setupFamilyHullMesh(scene);
   setupShiftVectorMesh(scene);
 
@@ -47,9 +48,8 @@ function plotData(scene) {
         if (picked !== null) {
           switch (picked.type) {
             case "gene": {
-              const selected = scene.getMeshByName("meshSelectedPoints");
-              if (!selected.TOX_unpick(picked.family, picked.geneIndex)) {
-                selected.TOX_pick(picked.family, picked.geneIndex);
+              if (!unpickInstance(picked)) {
+                pickInstance(picked);
                 const geneData = dataHandler.getGeneData(picked.family, picked.geneIndex, chunks.tissues, ["genes", "species"]);
                 createTooltip(evt.event.clientX, evt.event.clientY,
                   "Data Point<table><tbody>" +
@@ -64,15 +64,20 @@ function plotData(scene) {
               break;
             }
             case "centroid": {
-              const centroid = dataHandler.getCentroid(picked.family, ...chunks.tissues);
-              createTooltip(evt.event.clientX, evt.event.clientY,
-                "Centroid<table><tbody>" +
-                `<tr><td>Family:</td><td>${dataHandler.getFamilyIDs(picked.family)[0]}</td></tr>` +
-                `<tr><td>${chunks.tissues[0]}:</td><td>${centroid[0].toFixed(2)}</td></tr>` +
-                `<tr><td>${chunks.tissues[1]}:</td><td>${centroid[1].toFixed(2)}</td></tr>` +
-                `<tr><td>${chunks.tissues[2]}:</td><td>${centroid[2].toFixed(2)}</td></tr>` +
-                "</tbody></table>"
-              );
+              // const selected = scene.getMeshByName("meshSelectedCentroids");
+              if (!unpickInstance(picked)) {
+                pickInstance(picked);
+                const { centroid } = dataHandler.getFamilyData(picked.family, ...chunks.tissues);
+                createTooltip(evt.event.clientX, evt.event.clientY,
+                  "Centroid<table><tbody>" +
+                  `<tr><td>Family:</td><td>${dataHandler.getFamilyIDs(picked.family)[0]}</td></tr>` +
+                  `<tr><td>${chunks.tissues[0]}:</td><td>${centroid[0].toFixed(2)}</td></tr>` +
+                  `<tr><td>${chunks.tissues[1]}:</td><td>${centroid[1].toFixed(2)}</td></tr>` +
+                  `<tr><td>${chunks.tissues[2]}:</td><td>${centroid[2].toFixed(2)}</td></tr>` +
+                  "</tbody></table>"
+                );
+              }
+              break;
             }
           }
         } else {
@@ -80,23 +85,22 @@ function plotData(scene) {
         }
         break;
       case BABYLON.PointerEventTypes.POINTERDOUBLETAP:
-        if (picked !== null) {
-          const selected = scene.getMeshByName("meshSelectedPoints");
-
-          // if unpick was successful, so it was picked already, the original pick was initiated by the simultaneously triggered POINTERTAP
-          const wasUnselected = selected.TOX_unpick(picked.family, picked.geneIndex);
-          if (!wasUnselected) {
-            selected.TOX_unpick(picked.family);
-          } else {
-            selected.TOX_pick(picked.family);
-            createTooltip(evt.event.clientX, evt.event.clientY,
-              "Family<table><tbody>" +
-              `<tr><td>Family:</td><td>${dataHandler.getFamilyIDs(picked.family)[0]}</td></tr>` +
-              `<tr><td>Members:</td><td>${dataHandler.getGeneCount(picked.family)}</td></tr>` +
-              "</tbody></table>"
-            );
-          }
-        }
+        // // should pick/unpick all instances of a family, TODO, not yet working
+        // if (picked !== null) {
+        //   // if unpick was successful, so it was picked already, the original pick was initiated by the simultaneously triggered POINTERTAP
+        //   const wasUnselected = unpickInstance(picked);
+        //   if (!wasUnselected) {
+        //     unpickInstance(picked);
+        //   } else {
+        //     pickInstance(picked);
+        //     createTooltip(evt.event.clientX, evt.event.clientY,
+        //       "Family<table><tbody>" +
+        //       `<tr><td>Family:</td><td>${dataHandler.getFamilyIDs(picked.family)[0]}</td></tr>` +
+        //       `<tr><td>Members:</td><td>${dataHandler.getGeneCount(picked.family)}</td></tr>` +
+        //       "</tbody></table>"
+        //     );
+        //   }
+        // }
         break;
     }
   });
@@ -116,66 +120,15 @@ function setupFamilyHullMesh(scene) {
     const colorBuffer = new Float32Array(families.length * 4);
 
     families.forEach((family, i) => {
-      const centroid = Vector(...dataHandler.getCentroid(family, ...tissues).map(v => v*scale));
-      const sphereDiameter = config.get(`${family}_Diameter`) ?? config.get("defaultDiameter");
-
-      // calculate farthest data point from centroid
-      let farthestSpherePos = centroid;
-      let farthestDist = 0;
-      for (const geneIndex of dataHandler.genes(family)) {
-        const { is_outlier, coordinates } = dataHandler.getGeneData(family, geneIndex, tissues, ["is_outlier"]);
-        if (!is_outlier) {
-          const genePos = Vector(...coordinates.map(v => v*scale));
-          const distance = Vector.Distance(centroid, genePos)
-          if (distance > farthestDist) {
-            farthestDist = distance;
-            farthestSpherePos = genePos;
-          }
-        }
-      }
-
-      let otherEnd = farthestSpherePos;
-      farthestDist = 0;
-      for (const geneIndex of dataHandler.genes(family)) {
-        const { is_outlier, coordinates } = dataHandler.getGeneData(family, geneIndex, tissues, ["is_outlier"]);
-        if (!is_outlier) {
-          const genePos = Vector(...coordinates.map(v => v*scale));
-          const distance = Vector.Distance(farthestSpherePos, genePos)
-          if (distance > farthestDist) {
-            farthestDist = distance;
-            otherEnd = genePos;
-          }
-        }
-      }
-
-      // calculate farthest point from line centroid-farthestSphere
-      const lengthVector = farthestSpherePos.subtract(otherEnd).normalize();
-      let radius = 0;
-      for (const geneIndex of dataHandler.genes(family)) {
-        const { is_outlier, coordinates } = dataHandler.getGeneData(family, geneIndex, tissues, ["is_outlier"]);
-        if (!is_outlier) {
-          const genePos = Vector(...coordinates.map(v => v*scale));
-          const centroidToGene = genePos.subtract(otherEnd);
-          const projectionLength = BABYLON.Vector3.Dot(centroidToGene, lengthVector);
-          const projectionVector = lengthVector.scale(projectionLength);
-          const heightVector = centroidToGene.subtract(projectionVector);
-          const height = heightVector.length();
-          if (height > radius) {
-            radius = height;
-          }
-        }
-      }
-
-      const length = 2 * (Vector.Distance(farthestSpherePos, otherEnd) / 2 + sphereDiameter);
-      const width = 3 * (radius + sphereDiameter);
-
+      const familyData = dataHandler.getFamilyData(family, ...tissues);
+      const centroid = Vector(...familyData.centroid.map(v => v*scale));
+      const stdDevs = familyData.stdDevs.map(v => v*scale);
       const color = Color(config.get(family + "_Color") ?? dataHandler.getColor(family)).scale(2);
       fillThinInstanceBuffers(
         dimensionsBuffer, i * 16,
         {
-          position: farthestSpherePos.add(otherEnd).scale(0.5),
-          scaling: Vector(width, length, width),
-          target: farthestSpherePos
+          position: centroid,
+          scaling: Vector(stdDevs[0] * 3, stdDevs[1] * 2, stdDevs[2] * 3)
         },
         colorBuffer, i * 4,
         color
@@ -214,7 +167,7 @@ function setupShiftVectorMesh(scene) {
     for (const family of families) {
       let color = Color(config.get(family + "_Color") ?? dataHandler.getColor(family));
       color = color.scale(1 / Math.max(color.r, color.g, color.b));
-      const centroid = Vector(...dataHandler.getCentroid(family, ...tissues).map(v => v*scale));
+      const centroid = Vector(...dataHandler.getFamilyData(family, ...tissues).centroid.map(v => v*scale));
       const sphereDiameter = config.get(`${family}_Diameter`) ?? config.get("defaultDiameter");
 
       for (const geneIndex of dataHandler.genes(family)) {
@@ -253,76 +206,75 @@ function setupShiftVectorMesh(scene) {
         }
       }
     }
-    const shiftVectorShaft = BABYLON.MeshBuilder.CreateCylinder("shiftVectorShaft", {height: 1}, scene);
+    const shiftVectorShaft = Mesh.Cylinder(scene, "shiftVectorShaft");
     shiftVectorShaft.thinInstanceSetBuffer("matrix", dimensionBuffers.shaft, 16);
     shiftVectorShaft.thinInstanceSetBuffer("color", colorBuffer, 4);
-    const shiftVectorHead = BABYLON.MeshBuilder.CreateCylinder("shiftVectorHead", {height: 1, diameterTop: 0}, scene);
+    const shiftVectorHead = Mesh.Cone(scene, "shiftVectorHead");
     shiftVectorHead.thinInstanceSetBuffer("matrix", dimensionBuffers.head, 16);
     shiftVectorHead.thinInstanceSetBuffer("color", colorBuffer, 4);
   }
 }
 
-function setupSelectionMesh(scene) {
+function pickInstance({ mesh, family, geneIndex, position, scaling, rotation, type }) {
+  unpickInstance({ mesh, family, geneIndex });
+  const selectionMesh = mesh.getScene().getMeshByName("picked_" + mesh.TOX_shape);
+  const instance = selectionMesh.thinInstanceAdd(BABYLON.Matrix.Compose(scaling.add(Vector(.001, .001, .001)), rotation, position));
+  selectionMesh.TOX_metadata[instance] = { family, geneIndex };
+  selectionMesh.isVisible = true;
+
+  document.dispatchEvent(new CustomEvent("pick", { detail: { family, gene: geneIndex, type } }));
+}
+
+function unpickInstance({ mesh, family, geneIndex, type }) {
+  const selectionMesh = mesh.getScene().getMeshByName("picked_" + mesh.TOX_shape);
+  const worldMatrices = selectionMesh.thinInstanceGetWorldMatrices();
+  for (let i = 0; i < selectionMesh.thinInstanceCount; i++) {
+    const data = selectionMesh.TOX_metadata[i];
+    if (data.family === family) {
+      if (data.geneIndex === geneIndex) {
+        selectionMesh.thinInstanceCount--;
+        selectionMesh.thinInstanceSetMatrixAt(i, worldMatrices[selectionMesh.thinInstanceCount]);
+        selectionMesh.TOX_metadata[i] = selectionMesh.TOX_metadata[selectionMesh.thinInstanceCount];
+        selectionMesh.isVisible = selectionMesh.hasThinInstances;
+
+        document.dispatchEvent(new CustomEvent("unpick", { detail: { family, gene: data.geneIndex, type } }));
+        break;
+      }
+    }
+  }
+  return selectionMesh.TOX_metadata.splice(selectionMesh.thinInstanceCount).length;
+}
+
+function setupSelectionMeshes(scene) {
   const highlightLayer = new BABYLON.HighlightLayer("highlight", scene);
-  const meshSelectedPoints = Mesh.Sphere(scene, "meshSelectedPoints");
-  meshSelectedPoints.TOX_type = "gene";
+
+  const material =  Material(scene, null, {color: Color(0, 0, 0, 0)});
+
+  function setupMesh(mesh) {
+    mesh.isVisible = false;
+    mesh.material = material;
+    highlightLayer.setEffectIntensity(mesh, 0.7);
+    mesh.TOX_metadata = [];
+  }
+
+  const meshes = [
+    Mesh.Sphere(scene, "picked_sphere"),
+    Mesh.Octahedron(scene, "picked_octahedron"),
+    Mesh.Octahedron(scene, "picked_cylinder"),
+    Mesh.Cone(scene, "picked_cone")
+  ];
+
+  for (const mesh of meshes) {
+    setupMesh(mesh);
+  }
 
   config.setSetterCallback("selectedDataPointColor", hexColorCode => {
-    highlightLayer.removeMesh(meshSelectedPoints);
-    highlightLayer.addMesh(meshSelectedPoints, Color(hexColorCode));
-  })
-  highlightLayer.setEffectIntensity(meshSelectedPoints, 0.7);
-
-  // disable as long as spheres are picked
-  highlightLayer.isEnabled = false;
-
-  meshSelectedPoints.material = Material(scene, null, {color: Color(0, 0, 0, 0)});
-  Mesh.setSize(meshSelectedPoints, 0); // hide initial instance
-  meshSelectedPoints.TOX_pick = function (family, geneIndex) {
-    const scale = config.get("scale");
-    const inlierDiameter = config.get(`${family}_Diameter`) ?? config.get("defaultDiameter");
-    const outlierDiameter = config.get(`${family}_OutlierDiameter`) ?? config.get("defaultDiameter");
-    const tissues = [config.get("tissueX"), config.get("tissueY"), config.get("tissueZ")];
-
-    const pickOne = (geneIndex) => {
-      document.dispatchEvent(new CustomEvent("pick", { detail: { family, gene: geneIndex, type: this.TOX_type } }));
-
-      const { is_outlier, coordinates } = dataHandler.getGeneData(family, geneIndex, tissues, ["is_outlier"]);
-      const instance = this.createInstance();
-      instance.position = Vector(...coordinates.map(v => v * scale));
-      instance.TOX_family = family;
-      instance.TOX_geneIndex = geneIndex;
-      const diameter = is_outlier ? outlierDiameter : inlierDiameter;
-      Mesh.setSize(instance, diameter + 0.001); // slightly larger so the highlightLayer can truly distinguish it from the actual sphere
-      instance.freezeWorldMatrix();
+    const color = Color(hexColorCode);
+    for (const mesh of meshes) {
+      highlightLayer.removeMesh(mesh);
+      highlightLayer.addMesh(mesh, color);
     }
-    this.TOX_unpick(family, geneIndex);
-
-    if (geneIndex !== undefined) {
-      pickOne(geneIndex);
-    } else {
-      for (const geneIndex of dataHandler.genes(family)) {
-        pickOne(geneIndex);
-      }
-    }
-    highlightLayer.isEnabled = true;
-  }
-  meshSelectedPoints.TOX_unpick = function (family, geneIndex) {
-    const instances = this.instances.filter(i => ((i.TOX_family === family) || (family === undefined)) && ((geneIndex === undefined) || (i.TOX_geneIndex === geneIndex)))
-    for (const instance of instances) {
-      if (this.instances.length === 1) {
-        highlightLayer.isEnabled = false;
-      }
-      document.dispatchEvent(new CustomEvent("unpick", { detail: { family: instance.TOX_family, gene: instance.TOX_geneIndex, type: this.TOX_type } }));
-      instance.dispose();
-    }
-    return instances.length;
-  }
-  meshSelectedPoints.TOX_update = function () {
-    for (const instance of [...this.instances]) {
-      this.TOX_pick(instance.TOX_family, instance.TOX_geneIndex);
-    }
-  }
+  });
 
   // initially fetch picked instances from config and set them up
   new Promise(resolve => {
@@ -332,7 +284,7 @@ function setupSelectionMesh(scene) {
       if (typeof picked === "object") {
         for (const [family, genes] of Object.entries(picked)) {
           for (const geneIndex of genes) {
-            meshSelectedPoints.TOX_pick(family, geneIndex);
+            // meshSelectedPoints.TOX_pick(family, geneIndex);
           }
         }
       }
@@ -363,30 +315,41 @@ function pickFromMeshes(chunks) {
   let closestDist = Infinity;
   let picked = null;
   for (const chunkCentroid of chunks.active) {
-    const meshes = chunks.chunks.get(chunkCentroid)[2];
+    const meshes = [
+      ...chunks.chunks.get(chunkCentroid)[2],
+      ["arrow", chunks.scene.getMeshByName("shiftVectorHead")],
+      ["arrow", chunks.scene.getMeshByName("shiftVectorShaft")]
+    ];
+
     for (const [meshType, mesh] of meshes) {
       const sphereMatrices = mesh.thinInstanceGetWorldMatrices(); 
 
       for (const i in sphereMatrices) {
-        const matrix = sphereMatrices[i].m;
-        // extract translation
-        const tx = matrix[12];
-        const ty = matrix[13];
-        const tz = matrix[14];
-        const spherePosition = Vector(tx, ty, tz);
+        const position = Vector();
+        const scaling = Vector();
+        const rotation = new BABYLON.Quaternion();
 
-        const intersects = pickRay.intersectsSphere(
-          { center: spherePosition, radius: matrix[0] / 2 }
-        );
+        sphereMatrices[i].decompose(scaling, rotation, position);
+        let intersects;
+        if (["sphere", "octahedron"].includes(mesh.TOX_shape)) {
+          intersects = pickRay.intersectsSphere(
+            { center: position, radius: scaling.x / 2 }
+          );
+        } else {
+          // TODO: maybe use bounding box in local space
+          intersects = false;
+        }
         if (intersects) {
-          const distance = Vector.Distance(chunks.scene.activeCamera.position, spherePosition);
+          const distance = Vector.Distance(chunks.scene.activeCamera.position, position);
           if (distance < closestDist) {
             closestDist = distance;
             picked = {
-              position: spherePosition,
-              diameter: matrix[0],
+              position,
+              rotation,
+              scaling,
               index: i,
               meshType,
+              mesh,
               chunkCentroid
             }
           }
@@ -403,7 +366,6 @@ function pickFromMeshes(chunks) {
         picked.type = "centroid";
         for (const [family, members] of genes) {
           if (pickedIndex === 0) {
-            console.log(`Picked centroid of family '${family}'`);
             picked.family = family;
             break;
           }

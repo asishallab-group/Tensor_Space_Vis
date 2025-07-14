@@ -52,10 +52,19 @@ export const handler = {
       return "#" + hexString.replace(/[0-7]/g, char => (Number(char) + shift).toString(16)).toUpperCase();
     }
   },
-  getCentroid(familyIdx, ...tissues) {
-    return tissues.map((tissue) => {
-      return data[familyIdx]?.centroid[tissue];
-    });
+  getFamilyData(familyIdx, ...tissues) {
+    const familyData = {
+      family: this.getFamilyIDs(familyIdx)[0],
+      centroid: [],
+      stdDevs: []
+    };
+
+    for (const tissue of tissues) {
+      familyData.centroid.push(data[familyIdx]?.centroid[tissue]);
+      const tissueData = data[familyIdx]?.tissues[tissue];
+      familyData.stdDevs.push(stdDev(tissueData ?? []));
+    }
+    return familyData;
   },
   getGeneData: function (familyIdx, geneIndex, tissues=null, attributes=null) {
     tissues ??= this.tissues;
@@ -77,6 +86,13 @@ export const handler = {
       return geneData;
     }
   }
+}
+
+function stdDev(array) {
+  const mean = array.reduce((sum, val) => sum + val, 0) / array.length;
+  const squaredDiffs = array.map(val => Math.pow(val - mean, 2));
+  const variance = squaredDiffs.reduce((sum, val) => sum + val, 0) / array.length;
+  return Math.sqrt(variance);
 }
 
 // calculates a checksum for a given string

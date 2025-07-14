@@ -137,7 +137,7 @@ function setupOrbitView(scene) {
 
       let target;
       let radius;
-      const meshSelectedPoints = scene.getMeshByName("meshSelectedPoints");
+      const meshSelectedPoints = scene.getMeshByName("picked_sphere");
       if (meshSelectedPoints.instances.length === 0) {
         radius = 10;
         target = getOrbitTargetFromPosition(scene, scene.activeCamera.position, radius);
