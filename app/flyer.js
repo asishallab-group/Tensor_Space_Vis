@@ -77,18 +77,15 @@ function setupScene(engine, canvas) {
 
   // set fog to limit view
   scene.fogMode = Scene.FOGMODE_LINEAR;
-  for (const setting of ["chunkDiameter", "chunkLoadRange"]) {
-    config.setSetterCallback(setting, () => {
-      scene.fogEnd = config.get("chunkLoadRange") * config.get("chunkDiameter");
-      scene.fogStart = 0.5 * config.get("chunkDiameter");
-    });
-  }
 
   // set background color
-  config.setSetterCallback("backgroundColor", (hexColorCode) => {
-    setBackgroundColor(scene, hexColorCode);
-    scene.fogColor = Color.FromHexString(hexColorCode);
-  });
+  function setBackground(evt) {
+    setBackgroundColor(scene, evt.detail);
+    scene.fogColor = Color.FromHexString(evt.detail);
+  }
+  document.addEventListener("backgroundColor", setBackground);
+  document.addEventListener("darkMode", () => setBackground({ detail: config.get("backgroundColor") }));
+  setBackground({ detail: config.get("backgroundColor") });
 
   setupCamera(scene, canvas);
 
@@ -131,15 +128,18 @@ function showPositionOverlay(scene, xAxis, yAxis, zAxis) {
   const zPosition = yPosition.clone();
   zPosition.top = "-25%"; // Add some padding from the top
 
-  function setColorCallback(attribute, textfield, axis) {
-    config.setSetterCallback(attribute, (hexColorCode) => {
-      setTextfieldColor(textfield, hexColorCode);
-      Mesh.setColor(axis, hexColorCode)
-    })
+  function addTextfieldEventLister(attribute, textfield, axis) {
+    function setColor(evt) {
+      setTextfieldColor(textfield, evt.detail);
+      Mesh.setColor(axis, evt.detail);
+    }
+    document.addEventListener(attribute, setColor);
+    document.addEventListener("darkMode", () => setColor({ detail: config.get(attribute) }));
+    setColor({ detail: config.get(attribute) });
   }
-  setColorCallback("xAxisColor", xPosition, xAxis);
-  setColorCallback("yAxisColor", yPosition, yAxis);
-  setColorCallback("zAxisColor", zPosition, zAxis);
+  addTextfieldEventLister("xAxisColor", xPosition, xAxis);
+  addTextfieldEventLister("yAxisColor", yPosition, yAxis);
+  addTextfieldEventLister("zAxisColor", zPosition, zAxis);
 
   // Add the text blocks to the GUI overlay.
   advancedTexture.addControl(xPosition);

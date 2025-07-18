@@ -125,10 +125,21 @@ export function getInstanceMatrix(position, scaling, target) {
   return matrix;
 }
 
-export function fillThinInstanceBuffers(dimensionsBuffer, dIndex, {position, scaling, target}, colorBuffer, cIndex, color) {
-  getInstanceMatrix(position, scaling, target).copyToArray(dimensionsBuffer, dIndex);
-  colorBuffer[cIndex++] = color.r;
-  colorBuffer[cIndex++] = color.g;
-  colorBuffer[cIndex++] = color.b;
-  colorBuffer[cIndex] = color.a;
+export function decomposeMatrix(matrix) {
+  const position = Vector();
+  const scaling = Vector();
+  const rotation = new BABYLON.Quaternion();
+
+  matrix.decompose(scaling, rotation, position);
+  return { position, scaling, rotation };
+}
+
+export function fillThinInstanceBuffers(dimensionsBuffer, dIndex, instanceMatrix, colorBuffer, cIndex, color) {
+  instanceMatrix.copyToArray(dimensionsBuffer, dIndex);
+  if (colorBuffer !== undefined) {
+    colorBuffer[cIndex++] = color.r;
+    colorBuffer[cIndex++] = color.g;
+    colorBuffer[cIndex++] = color.b;
+    colorBuffer[cIndex] = color.a;
+  }
 }

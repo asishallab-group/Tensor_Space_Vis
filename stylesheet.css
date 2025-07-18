@@ -105,6 +105,12 @@ main {
   box-shadow: none;
 }
 
+#UI > #top-right {
+  grid-area: top-right;
+  display: flex;
+  box-shadow: none;
+}
+
 #top-left > * {
   height: 1%;
 }

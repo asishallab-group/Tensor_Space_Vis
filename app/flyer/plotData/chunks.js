@@ -1,6 +1,6 @@
 "use strict";
 
-import { Color, Vector, Mesh, fillThinInstanceBuffers } from "./babylon.js";
+import { Color, Vector, Mesh, fillThinInstanceBuffers, getInstanceMatrix, decomposeMatrix } from "../babylon.js";
 
 export function getChunks(scene) {
   const chunks = {
@@ -24,7 +24,7 @@ export function getChunks(scene) {
       this.diameter = config.get("chunkDiameter");
       this.loadRange = config.get("chunkLoadRange");
       this.tissues = [config.get("tissueX"), config.get("tissueY"), config.get("tissueZ")]
-      this.families = config.get("shownFamilies") ?? dataHandler.families;
+      this.families = config.get("shownFamilies");
       
       const position = this.scene.activeCamera.position.asArray();
       this.currentChunkCentroid = getChunkCentroid(position, this.diameter);
@@ -78,7 +78,6 @@ export function getChunks(scene) {
       if (state) {
         for (const [centroid, chunkData] of chunks) {
           const [genes, counts, meshes] = chunkData;
-
           for (const [key, mesh] of meshes) {
             mesh.dispose();
             meshes.delete(key);
@@ -127,34 +126,33 @@ export function getChunks(scene) {
 
           for (const [family, members] of genes) {
             const colors = {
-              family: Color.FromHexString(config.get(`${family}_Color`) ?? dataHandler.getColor(family))
+              inliers: Color.FromHexString(config.familyGet(family, "Color")),
+              outliers: Color.FromHexString(config.familyGet(family, "OutlierColor"))
             };
-            colors.centroids = colors.family.scale(2);
+            colors.centroids = colors.inliers.scale(2);
             colors.centroids.a /= 2;
 
-            const outlierColorHex = config.get(`${family}_OutlierColor`);
-            if (outlierColorHex !== undefined) {
-              colors.outliers = Color.FromHexString(outlierColorHex);
-            }
             const diameters = {
-              default: config.get(`defaultDiameter`),
-              inliers: config.get(`${family}_Diameter`),
-              outliers: config.get(`${family}_OutlierDiameter`)
+              inliers: config.familyGet(family, "Diameter"),
+              outliers: config.familyGet(family, "OutlierDiameter")
             }
             diameters.centroids = diameters.inliers;
 
             for (const [memberType, geneIndices] of Object.entries(members)) {
               const memberCtx = ctx[memberType];
-              const diameter = diameters[memberType] ?? diameters.default;
-              const color = colors[memberType] ?? colors.family;
+              const diameter = diameters[memberType];
+              const color = colors[memberType];
 
               const addInstance = (coordinates, diameter) => {
+                const position = Vector(...coordinates.map(v => v * this.scale));
+                const scaling = Vector(diameter, diameter, diameter);
+                const instanceMatrix = getInstanceMatrix(
+                  position,
+                  scaling
+                );
                 fillThinInstanceBuffers(
                   memberCtx.dimensionBuffer, memberCtx.bufferIndex * 16,
-                  {
-                    position: Vector(...coordinates.map(v => v * this.scale)),
-                    scaling: Vector(diameter, diameter, diameter)
-                  },
+                  instanceMatrix,
                   memberCtx.colorBuffer, memberCtx.bufferIndex * 4,
                   color
                 );
@@ -167,7 +165,7 @@ export function getChunks(scene) {
                   addInstance(coordinates, diameter);
                 }
               } else {
-                const show = config.get(`${family}_Centroid`);
+                const show = config.familyGet(family, "Centroid");
                 if (show) {
                   const coordinates = dataHandler.getFamilyData(family, ...this.tissues).centroid;
                   addInstance(coordinates, diameter * 4);
@@ -202,9 +200,41 @@ export function getChunks(scene) {
     }
   };
 
-  chunks.recalculate();
-  chunks.load();
-  registerLoading(chunks)
+  {
+    function reload() {
+      chunks.load();
+    }
+    for (const setting of ["shownFamilies", "defaultDiameter", "Centroid", "Diameter", "OutlierDiameter", "Color", "OutlierColor", "darkMode"]) {
+      document.addEventListener(setting, reload);
+    }
+  }
+
+  function rebuildChunks() {
+    chunks.recalculate();
+    chunks.load();
+  }
+
+  rebuildChunks();
+  registerLoading(chunks);
+
+  for (const setting of ["tissueX", "tissueY", "tissueZ", "scale"]) {
+    document.addEventListener(setting, rebuildChunks);
+  }
+
+  {
+    function setFog() {
+      scene.fogEnd = chunks.loadRange * chunks.diameter;
+      scene.fogStart = 0.5 * chunks.diameter;
+    }
+    function changeSight(evt) {
+      rebuildChunks();
+      setFog();
+    }
+    for (const setting of ["chunkDiameter", "chunkLoadRange"]) {
+      document.addEventListener(setting, changeSight);
+    }
+    setFog();
+  }
   return chunks;
 }
 
@@ -263,25 +293,6 @@ function registerLoading(chunks) {
     }
   });
 }
-
-// function fillThinInstanceBuffers(dimensionsBuffer, dIndex, colorBuffer, cIndex, diameter, [x, y, z], color) {
-//   dimensionsBuffer[dIndex] = diameter; // set x scale
-//   dimensionsBuffer[dIndex + 5] = diameter; // set y scale
-//   dimensionsBuffer[dIndex + 10] = diameter; // set z scale
-
-//   dimensionsBuffer[dIndex + 12] = x;
-//   dimensionsBuffer[dIndex + 13] = y;
-//   dimensionsBuffer[dIndex + 14] = z;
-
-//   dimensionsBuffer[dIndex + 15] = 1;
-//   // the unchanged indices affect the rotation of the sphere -> zero 
-
-//   // setting color
-//   colorBuffer[cIndex++] = color.r;
-//   colorBuffer[cIndex++] = color.g;
-//   colorBuffer[cIndex++] = color.b;
-//   colorBuffer[cIndex] = color.a;
-// }
 
 function getChunkCentroid([ x, y, z ], diameter) {
   function trim(a) {

@@ -3,7 +3,7 @@
 export function setupGUI() {
   createUIdiv();
   createPickedDetailsDialog();
-  switchToDetails("gene");
+  switchToDetails("Gene");
 
   let pickedCount = 0;
   document.addEventListener("pick", evt => {
@@ -26,7 +26,7 @@ export function setupGUI() {
 function appendDetailRow({ family, gene, type }) {
   const id = `${family}.${gene}.${type}`;
   let data;
-  if (type === "centroid") {
+  if (type === "Centroid") {
     const familyData = dataHandler.getFamilyData(family, ...dataHandler.tissues);
     data = { coordinates: familyData.centroid, family: familyData.family };
   } else {
@@ -80,7 +80,7 @@ function createPickedDetailsDialog() {
 
         for (const header of headers) {
           const th = createElement("th", {
-            textContent: header.title ?? config.get(header.configKey)
+            children: [header.title]
           });
           tr.appendChild(th);
         }
@@ -108,27 +108,6 @@ function createPickedDetailsDialog() {
       });
       document.getElementById("UI")?.appendChild(pickedDetails);
     }
-
-    document.addEventListener("chunkReload", evt => {
-      const dataMap = getDetailsTableDataMap();
-      for (const table of document.getElementsByName("detailsTable")) {
-        const [type] = table.id.split("DetailsTable");
-        const headers = table.tHead.firstChild.children;
-        dataMap[type].forEach(({ configKey }, i) => {
-          if (configKey !== undefined) {
-            headers[i].textContent = config.get(configKey);
-          }
-        })
-
-        for (const row of table.tBody.children) {
-          const [family, gene, type] = row.id.split(".");
-          const geneData = dataHandler.getGeneData(Number(family), Number(gene));
-          dataMap[type].forEach(({ data }, i) => {
-            row[i].textContent = data(geneData);
-          })
-        }
-      }
-    })
   }
 }
 
@@ -158,9 +137,6 @@ function createRowSelector(selectAll=false) {
 
 function getDetailsTableDataMap() {
   const tissues = dataHandler.tissues;
-  function getTissueData(geneData) {
-    return geneData.coordinates[tissues.indexOf(config.get(this.configKey))].toFixed(3);
-  }
   const links = {
     family: {
       title: "Family",
@@ -180,30 +156,52 @@ function getDetailsTableDataMap() {
           links.family,
           { title: "Species", data() {return geneData["species"]} },
           { title: "Description", data() {return "..."} },
-          ...dataHandler.tissues.map((tissue, i) => {
+          ...tissues.map((tissue, i) => {
             return { title: tissue, data() {return geneData.coordinates[i]} }
           })
         ]);
       } 
     }
   }
+  function tissueRelatedHeader(key) {
+    function createValueElement(tissueData) {
+      const value = createElement("span");
+      value.innerText = tissueData[tissues.indexOf(config.get(key))].toFixed(3);
+      document.addEventListener(key, function (evt) {
+        value.innerText = tissueData[tissues.indexOf(evt.detail)].toFixed(3);
+      });
+      return value;
+    }
+    return {
+      get title() {
+        const title = createElement("span");
+        title.innerText = config.get(key);
+        document.addEventListener(key, evt => title.innerText = evt.detail);
+        return title;
+      },
+      data(geneData) {
+        return createValueElement(geneData.coordinates);
+      }
+    };
+  }
+  const tissueRelated = [
+    tissueRelatedHeader("tissueX"),
+    tissueRelatedHeader("tissueY"),
+    tissueRelatedHeader("tissueZ")
+  ]
   return {
-    "gene": [
+    Gene: [
       links.gene,
       links.family,
-      { configKey: "tissueX", data: getTissueData},
-      { configKey: "tissueY", data: getTissueData},
-      { configKey: "tissueZ", data: getTissueData}
+      ...tissueRelated
     ],
-    "shift vector": [
-      { title: "Gene", data(geneData) {return geneData["genes"]} },
-      { title: "Family", data(geneData) {return geneData["family"]} }
+    ShiftVector: [
+      links.gene,
+      links.family
     ],
-    "centroid": [
+    Centroid: [
       links.family,
-      { configKey: "tissueX", data: getTissueData},
-      { configKey: "tissueY", data: getTissueData},
-      { configKey: "tissueZ", data: getTissueData}
+      ...tissueRelated
     ]
   };
 }
@@ -220,7 +218,7 @@ function showSingleDetails(geneData, value, headerMap) {
     for (const header of headerMap) {
       const tr = createElement("tr", {
         children: [
-          createElement("td", { textContent: header.title ?? config.get(header.configKey) }),
+          createElement("td", { children: [header.title] }),
           createElement("td", { children: [header.data(geneData)] })
         ]
       });

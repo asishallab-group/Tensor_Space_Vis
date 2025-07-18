@@ -35,64 +35,96 @@ export function setupCamera(scene, canvas) {
   camera.keysRotateLeft = [81]; // Q
   camera.keysRotateRight = [69]; // E
 
-  // Set the movement speed and mouse sensitivity for a smooth experience.
-  config.setSetterCallback("movementSpeed", (speed) => {
-    camera.speed = speed; // Controls the speed of movement for WASD and arrow keys.
-  });
-  config.setSetterCallback("mouseSensibility", (sensibility) => {
-    camera.angularSensibility = sensibility; // Controls mouse drag sensitivity for view rotation.
-  })
+  {
+    // Set the movement speed and mouse sensitivity for a smooth experience.
+    function setMovementSpeed(evt) {
+      camera.speed = evt.detail; // Controls the speed of movement for WASD and arrow keys.
+    }
+    document.addEventListener("movementSpeed", setMovementSpeed);
+    setMovementSpeed({ detail: config.get("movementSpeed") });
+  }
+  {
+    function setMouseSensibility(evt) {
+      camera.angularSensibility = evt.detail; // Controls mouse drag sensitivity for view rotation.
+    }
+    document.addEventListener("mouseSensibility", setMouseSensibility);
+    setMouseSensibility({ detail: config.get("mouseSensibility") });
+  }
 
   // create an ArcRotateCamera for orbit view
   const orbitCam = OrbitCam(scene, "orbitCamera");
 
   setupOrbitView(scene);
 
-  config.setSetterCallback("rotationX", (radians) => {
-    if (config.get("orbitMode")) {
-      orbitCam.beta = -radians + Math.PI / 2;
-    } else {
-      camera.rotation.x = radians;
-    }
-  });
-  config.setSetterCallback("rotationY", (radians) => {
-    if (config.get("orbitMode")) {
-      orbitCam.alpha = radians + 1.5 * Math.PI;
-    } else {
-      camera.rotation.y = -radians;
-    }
-  });
-
-  for (const axis of "xyz") {
-    config.setSetterCallback(axis, (position) => {
-      const scale = config.get("scale");
+  {
+    function setRotationX(evt) {
       if (config.get("orbitMode")) {
-        const newPosition = Vector(config.get("x"), config.get("y"), config.get("z")).scale(scale);
+        orbitCam.beta = -evt.detail + Math.PI / 2;
+      } else {
+        camera.rotation.x = evt.detail;
+      }
+    }
+    document.addEventListener("rotationX", setRotationX);
+    setRotationX({ detail: config.get("rotationX") });
+  }
+
+  {
+    function setRotationY(evt) {
+      if (config.get("orbitMode")) {
+        orbitCam.alpha = evt.detail + 1.5 * Math.PI;
+      } else {
+        camera.rotation.y = -evt.detail;
+      }
+    }
+    document.addEventListener("rotationY", setRotationY);
+    setRotationY({ detail: config.get("rotationY") });
+  }
+
+  {
+    function setPosition() {
+      const scale = config.get("scale");
+      const newPosition = Vector(config.get("x"), config.get("y"), config.get("z")).scale(scale);
+      if (config.get("orbitMode")) {
         const newTarget = getOrbitTargetFromPosition(scene, newPosition, orbitCam.radius);
         orbitCam.setTarget(newTarget);
         orbitCam.position = newPosition;
       } else {
-        camera.position[axis] = position * scale;
+        camera.position = newPosition;
       }
-    })
+    }
+    for (const axis of "xyz") {
+      document.addEventListener(axis, setPosition);
+    }
+    setPosition();
   }
 
-  config.setSetterCallback("orbitModeTargetDistance", (radius) => {
-    if (config.get("orbitMode")) {
-      const newTarget = getOrbitTargetFromPosition(scene, orbitCam.position, radius);
-      orbitCam.setTarget(newTarget);
+  {
+    function setOrbitRadius(evt) {
+      if (config.get("orbitMode")) {
+        const newTarget = getOrbitTargetFromPosition(scene, orbitCam.position, evt.detail);
+        orbitCam.setTarget(newTarget);
+      }
     }
-  })
+    document.addEventListener("orbitModeTargetDistance", setOrbitRadius);
+    setOrbitRadius({ detail: config.get("orbitModeTargetDistance") });
+  }
 
-  config.setSetterCallback("scale", (scale) => {
-    // update position to the scaled position
-    config.set("x", config.get("x"));
-    config.set("y", config.get("y"));
-    config.set("z", config.get("z"));
-  })
-  canvas.addEventListener("wheel", event => {
-    if (scene.activeCamera.name !== "orbitCamera") {
-      config.set("scale", config.get("scale") - Math.floor(event.deltaY / 10));
+  {
+    function setScale() {
+      // update position to the scaled position
+      config.set("x", config.get("x"));
+      config.set("y", config.get("y"));
+      config.set("z", config.get("z"));
+    }
+    document.addEventListener("scale", setScale);
+    setScale();
+  }
+
+  canvas.addEventListener("wheel", evt => {
+    if (scene.activeCamera.name !== "orbitCamera" && !evt.ctrlKey && !evt.altKey && !evt.shiftKey && !evt.metaKey) {
+      try {
+        config.set("scale", config.get("scale") - Math.floor(evt.deltaY / 10));
+      } catch {}
     }
   });
 
@@ -125,53 +157,58 @@ function getOrbitTargetFromPosition(scene, position, radius) {
 }
 
 function setupOrbitView(scene) {
-  config.setSetterCallback("orbitMode", (enable) => {
-    if (!enable && scene.activeCamera.name !== "camera") {
-      const camera = scene.getCameraByName("camera");
-      const position = scene.activeCamera.position;
-      scene.switchActiveCamera(camera);
-      camera.position = position;
-    }
-    else if (enable && scene.activeCamera.name !== "orbitCamera") {
-      const orbitCamera = scene.getCameraByName("orbitCamera");
-
-      let target;
-      let radius;
-      const meshSelectedPoints = scene.getMeshByName("picked_sphere");
-      if (meshSelectedPoints.instances.length === 0) {
-        radius = 10;
-        target = getOrbitTargetFromPosition(scene, scene.activeCamera.position, radius);
-      } else {
-        // calculate mid point of all selected points and set as target,
-        // set distance to this point as radius
-
-        // Initialize variables to calculate the sum of positions
-        let sumX = 0;
-        let sumY = 0;
-        let sumZ = 0;
-
-        // Loop through all instances and sum up their positions
-        meshSelectedPoints.instances.forEach(instance => {
-            const position = instance.position;
-            sumX += position.x;
-            sumY += position.y;
-            sumZ += position.z;
-        });
-
-        // Calculate the average position
-        const numInstances = meshSelectedPoints.instances.length;
-        target = Vector(
-            sumX / numInstances,
-            sumY / numInstances,
-            sumZ / numInstances
-        );
-        radius = Vector.Distance(target, scene.activeCamera.position);
+  {
+    function toggleOrbitMode(evt) {
+      if (!evt.detail && scene.activeCamera.name !== "camera") {
+        const camera = scene.getCameraByName("camera");
+        const position = scene.activeCamera.position;
+        scene.switchActiveCamera(camera);
+        camera.position = position;
       }
-      scene.switchActiveCamera(orbitCamera);
-      orbitCamera.setTarget(target);
-      orbitCamera.radius = radius;
+      else if (evt.detail && scene.activeCamera.name !== "orbitCamera") {
+        const orbitCamera = scene.getCameraByName("orbitCamera");
+
+        let target;
+        let radius;
+        const meshSelectedPoints = scene.getMeshByName("PickedSphere");
+        if (meshSelectedPoints.instances.length === 0) {
+          radius = 10;
+          target = getOrbitTargetFromPosition(scene, scene.activeCamera.position, radius);
+        } else {
+          // calculate mid point of all selected points and set as target,
+          // set distance to this point as radius
+
+          // Initialize variables to calculate the sum of positions
+          let sumX = 0;
+          let sumY = 0;
+          let sumZ = 0;
+
+          // Loop through all instances and sum up their positions
+          meshSelectedPoints.instances.forEach(instance => {
+              const position = instance.position;
+              sumX += position.x;
+              sumY += position.y;
+              sumZ += position.z;
+          });
+
+          // Calculate the average position
+          const numInstances = meshSelectedPoints.instances.length;
+          target = Vector(
+              sumX / numInstances,
+              sumY / numInstances,
+              sumZ / numInstances
+          );
+          radius = Vector.Distance(target, scene.activeCamera.position);
+        }
+        scene.switchActiveCamera(orbitCamera);
+        orbitCamera.setTarget(target);
+        orbitCamera.radius = radius;
+      }
     }
-  })
+    document.addEventListener("orbitMode", toggleOrbitMode);
+    toggleOrbitMode({ detail: config.get("orbitMode") });
+  }
+  
   scene.getEngine().getRenderingCanvas().addEventListener("keydown", (evt) => {
     const key = evt.key.toLowerCase();
     if (key === "f") {
