@@ -79,13 +79,11 @@ function setupScene(engine, canvas) {
   scene.fogMode = Scene.FOGMODE_LINEAR;
 
   // set background color
-  function setBackground(evt) {
-    setBackgroundColor(scene, evt.detail);
-    scene.fogColor = Color.FromHexString(evt.detail);
+  function setBackground({ value }) {
+    setBackgroundColor(scene, value);
+    scene.fogColor = Color.FromHexString(value);
   }
-  document.addEventListener("backgroundColor", setBackground);
-  document.addEventListener("darkMode", () => setBackground({ detail: config.get("backgroundColor") }));
-  setBackground({ detail: config.get("backgroundColor") });
+  config.onChange("backgroundColor", setBackground);
 
   setupCamera(scene, canvas);
 
@@ -129,13 +127,11 @@ function showPositionOverlay(scene, xAxis, yAxis, zAxis) {
   zPosition.top = "-25%"; // Add some padding from the top
 
   function addTextfieldEventLister(attribute, textfield, axis) {
-    function setColor(evt) {
-      setTextfieldColor(textfield, evt.detail);
-      Mesh.setColor(axis, evt.detail);
+    function setColor({ value }) {
+      setTextfieldColor(textfield, value);
+      Mesh.setColor(axis, value);
     }
-    document.addEventListener(attribute, setColor);
-    document.addEventListener("darkMode", () => setColor({ detail: config.get(attribute) }));
-    setColor({ detail: config.get(attribute) });
+    config.onChange(attribute, setColor);
   }
   addTextfieldEventLister("xAxisColor", xPosition, xAxis);
   addTextfieldEventLister("yAxisColor", yPosition, yAxis);
@@ -341,6 +337,8 @@ async function main() {
     const compassScene = add3DCompass(scene, engine);
 
     plotData(scene);
+
+    config.init();
 
     // Run the render loop to continuously update the scene.
     engine.runRenderLoop(() => {

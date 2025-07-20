@@ -1,6 +1,6 @@
 "use strict";
 
-import { Vector, UniversalCam, OrbitCam, Material, Color } from "./babylon.js";
+import { Vector, UniversalCam, OrbitCam, Material, Color, decomposeMatrix } from "./babylon.js";
 
 /**
  * Function: setupCamera
@@ -37,18 +37,16 @@ export function setupCamera(scene, canvas) {
 
   {
     // Set the movement speed and mouse sensitivity for a smooth experience.
-    function setMovementSpeed(evt) {
-      camera.speed = evt.detail; // Controls the speed of movement for WASD and arrow keys.
+    function setMovementSpeed({ value }) {
+      camera.speed = value; // Controls the speed of movement for WASD and arrow keys.
     }
-    document.addEventListener("movementSpeed", setMovementSpeed);
-    setMovementSpeed({ detail: config.get("movementSpeed") });
+    config.onChange("movementSpeed", setMovementSpeed);
   }
   {
-    function setMouseSensibility(evt) {
-      camera.angularSensibility = evt.detail; // Controls mouse drag sensitivity for view rotation.
+    function setMouseSensibility({ value }) {
+      camera.angularSensibility = value; // Controls mouse drag sensitivity for view rotation.
     }
-    document.addEventListener("mouseSensibility", setMouseSensibility);
-    setMouseSensibility({ detail: config.get("mouseSensibility") });
+    config.onChange("mouseSensibility", setMouseSensibility);
   }
 
   // create an ArcRotateCamera for orbit view
@@ -57,27 +55,25 @@ export function setupCamera(scene, canvas) {
   setupOrbitView(scene);
 
   {
-    function setRotationX(evt) {
+    function setRotationX({ value }) {
       if (config.get("orbitMode")) {
-        orbitCam.beta = -evt.detail + Math.PI / 2;
+        orbitCam.beta = -value + Math.PI / 2;
       } else {
-        camera.rotation.x = evt.detail;
+        camera.rotation.x = value;
       }
     }
-    document.addEventListener("rotationX", setRotationX);
-    setRotationX({ detail: config.get("rotationX") });
+    config.onChange("rotationX", setRotationX);
   }
 
   {
-    function setRotationY(evt) {
+    function setRotationY({ value }) {
       if (config.get("orbitMode")) {
-        orbitCam.alpha = evt.detail + 1.5 * Math.PI;
+        orbitCam.alpha = value + 1.5 * Math.PI;
       } else {
-        camera.rotation.y = -evt.detail;
+        camera.rotation.y = -value;
       }
     }
-    document.addEventListener("rotationY", setRotationY);
-    setRotationY({ detail: config.get("rotationY") });
+    config.onChange("rotationY", setRotationY);
   }
 
   {
@@ -93,20 +89,18 @@ export function setupCamera(scene, canvas) {
       }
     }
     for (const axis of "xyz") {
-      document.addEventListener(axis, setPosition);
+      config.onChange(axis, setPosition);
     }
-    setPosition();
   }
 
   {
-    function setOrbitRadius(evt) {
+    function setOrbitRadius({ value }) {
       if (config.get("orbitMode")) {
-        const newTarget = getOrbitTargetFromPosition(scene, orbitCam.position, evt.detail);
+        const newTarget = getOrbitTargetFromPosition(scene, orbitCam.position, value);
         orbitCam.setTarget(newTarget);
       }
     }
-    document.addEventListener("orbitModeTargetDistance", setOrbitRadius);
-    setOrbitRadius({ detail: config.get("orbitModeTargetDistance") });
+    config.onChange("orbitModeTargetDistance", setOrbitRadius);
   }
 
   {
@@ -116,8 +110,7 @@ export function setupCamera(scene, canvas) {
       config.set("y", config.get("y"));
       config.set("z", config.get("z"));
     }
-    document.addEventListener("scale", setScale);
-    setScale();
+    config.onChange("scale", setScale);
   }
 
   canvas.addEventListener("wheel", evt => {
@@ -158,20 +151,21 @@ function getOrbitTargetFromPosition(scene, position, radius) {
 
 function setupOrbitView(scene) {
   {
-    function toggleOrbitMode(evt) {
-      if (!evt.detail && scene.activeCamera.name !== "camera") {
+    function toggleOrbitMode({ value }) {
+      if (!value && scene.activeCamera.name !== "camera") {
         const camera = scene.getCameraByName("camera");
         const position = scene.activeCamera.position;
         scene.switchActiveCamera(camera);
         camera.position = position;
       }
-      else if (evt.detail && scene.activeCamera.name !== "orbitCamera") {
+      else if (value && scene.activeCamera.name !== "orbitCamera") {
         const orbitCamera = scene.getCameraByName("orbitCamera");
 
         let target;
         let radius;
-        const meshSelectedPoints = scene.getMeshByName("PickedSphere");
-        if (meshSelectedPoints.instances.length === 0) {
+        const meshSelectedPoints = scene.getMeshByName("pickedSphere");
+        const instanceCount = meshSelectedPoints.TOX_instanceCount;
+        if (instanceCount === 0) {
           radius = 10;
           target = getOrbitTargetFromPosition(scene, scene.activeCamera.position, radius);
         } else {
@@ -184,19 +178,18 @@ function setupOrbitView(scene) {
           let sumZ = 0;
 
           // Loop through all instances and sum up their positions
-          meshSelectedPoints.instances.forEach(instance => {
-              const position = instance.position;
+          meshSelectedPoints.thinInstanceGetWorldMatrices().forEach(matrix => {
+              const { position } = decomposeMatrix(matrix);
               sumX += position.x;
               sumY += position.y;
               sumZ += position.z;
           });
 
           // Calculate the average position
-          const numInstances = meshSelectedPoints.instances.length;
           target = Vector(
-              sumX / numInstances,
-              sumY / numInstances,
-              sumZ / numInstances
+              sumX / instanceCount,
+              sumY / instanceCount,
+              sumZ / instanceCount
           );
           radius = Vector.Distance(target, scene.activeCamera.position);
         }
@@ -205,11 +198,10 @@ function setupOrbitView(scene) {
         orbitCamera.radius = radius;
       }
     }
-    document.addEventListener("orbitMode", toggleOrbitMode);
-    toggleOrbitMode({ detail: config.get("orbitMode") });
+    config.onChange("orbitMode", toggleOrbitMode);
   }
   
-  scene.getEngine().getRenderingCanvas().addEventListener("keydown", (evt) => {
+  scene.getEngine().getRenderingCanvas().addEventListener("keydown", evt => {
     const key = evt.key.toLowerCase();
     if (key === "f") {
       config.set("orbitMode", !config.get("orbitMode"));

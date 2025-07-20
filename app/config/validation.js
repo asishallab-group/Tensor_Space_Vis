@@ -36,11 +36,11 @@ export function getValidator() {
       [
         ["x", "y", "z", "rotationX", "rotationY"],
         v => {
-          if (typeof v !== "number" || !Number.isFinite(v)) throw new Error(`Expecting number, got: ${typeof v}`);
+          if (typeof v !== "number" || !Number.isFinite(v)) throw new Error(`Expecting non infinite number, got: ${typeof v} '${v}'`);
         }
       ],
       [
-        ["orbitModeTargetDistance", "mouseSensibility", "movementSpeed", "scale", "defaultDiameter", "Diameter", "OutlierDiameter"],
+        ["orbitModeTargetDistance", "mouseSensibility", "movementSpeed", "scale", "Diameter"],
         v => {
           if (typeof v !== "number" || v <= 0 || !Number.isFinite(v)) throw new Error(`Expecting true positive number, got: ${v} (${typeof v})`);
         }
@@ -65,7 +65,7 @@ export function getValidator() {
       ],
       [["tissueX", "tissueY", "tissueZ"], () => {}],
       [
-        ["selectedDataPointColor", "backgroundColor", "xAxisColor", "yAxisColor", "zAxisColor", "Color", "OutlierColor"],
+        ["selectedDataPointColor", "backgroundColor", "xAxisColor", "yAxisColor", "zAxisColor", "Color"],
         v => {
           if (!/^#[A-Fa-f0-9]{6}(?:[A-Fa-f0-9]{2})?$/.test(v)) throw new Error(`Expecting RGB(A) hex color code, got: ${v}`);
         }

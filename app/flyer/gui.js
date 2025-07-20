@@ -165,18 +165,18 @@ function getDetailsTableDataMap() {
   }
   function tissueRelatedHeader(key) {
     function createValueElement(tissueData) {
-      const value = createElement("span");
-      value.innerText = tissueData[tissues.indexOf(config.get(key))].toFixed(3);
-      document.addEventListener(key, function (evt) {
-        value.innerText = tissueData[tissues.indexOf(evt.detail)].toFixed(3);
+      const valueElement = createElement("span");
+      valueElement.innerText = tissueData[tissues.indexOf(config.get(key))].toFixed(3);
+      config.onChange(key, function ({ value }) {
+        valueElement.innerText = tissueData[tissues.indexOf(value)].toFixed(3);
       });
-      return value;
+      return valueElement;
     }
     return {
       get title() {
         const title = createElement("span");
         title.innerText = config.get(key);
-        document.addEventListener(key, evt => title.innerText = evt.detail);
+        config.onChange(key, ({ value }) => title.innerText = value);
         return title;
       },
       data(geneData) {

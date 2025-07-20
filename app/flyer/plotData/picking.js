@@ -17,25 +17,6 @@ export function setupPicking(chunks) {
   setupGenePicking(chunks.scene);
   setupCentroidPicking(chunks.scene);
   setupVectorPicking(chunks.scene);
-  {
-    function repickGenesAndCentroids() {
-      for (const meshName of ["pickedSphere", "pickedOctahedron"]) {
-        const mesh = chunks.scene.getMeshByName(meshName);
-        for (const { family, geneIndex } of mesh.TOX_metadata) {
-          if (geneIndex !== undefined) {
-            config.familySet(family, "PickedGene", true, geneIndex, false);
-          } else {
-            config.familySet(family, "PickedCentroid", true, geneIndex, false);
-          }
-        }
-      }
-      document.dispatchEvent(new CustomEvent("PickedCentroidUpdated"));
-      document.dispatchEvent(new CustomEvent("PickedGeneUpdated"));
-    }
-    for (const setting of ["tissueX", "tissueY", "tissueZ", "scale", "OutlierDiameter", "Diameter", "defaultDiameter"]) {
-      document.addEventListener(setting, repickGenesAndCentroids);
-    }
-  }
   registerClickEvents(chunks);
 }
 
@@ -135,12 +116,11 @@ function selectionMeshPick(selectionMesh, family, gene, type, instanceMatrix, di
 }
 
 function setupGenePicking(scene) {
-  function pick(evt) {
-    const { family, gene, value } = evt.detail;
+  function pick({ family, gene, value }) {
     const { coordinates, is_outlier } = dataHandler.getGeneData(family, gene, [config.get("tissueX"), config.get("tissueY"), config.get("tissueZ")], ["is_outlier"]);
     const mesh = scene.getMeshByName(`picked${is_outlier ? "Octahedron" : "Sphere"}`);
     if (value) {
-      const diameter = (config.familyGet(family, is_outlier ? "OutlierDiameter" : "Diameter")) + .001;
+      const diameter = (config.familyGet(family, "Diameter")) + .001;
       const scale = config.get("scale");
       selectionMeshPick(
         mesh,
@@ -156,15 +136,34 @@ function setupGenePicking(scene) {
       selectionMeshPick(mesh, family, gene, "Gene");
     }
   }
-  document.addEventListener("PickedGene", pick);
-  for (const meshName of ["pickedSphere", "pickedOctahedron"]) {
-    document.addEventListener("PickedGeneUpdated", () => dynamicThinInstanceBufferUpdated(scene.getMeshByName(meshName)));
+  config.onChange("PickedGene", pick, null);
+
+  function update() {
+    for (const meshName of ["pickedSphere", "pickedOctahedron"]) {
+      dynamicThinInstanceBufferUpdated(scene.getMeshByName(meshName));
+    }
+  }
+  config.onChange("PickedGene", update);
+
+  function repick() {
+    for (const meshName of ["pickedSphere", "pickedOctahedron"]) {
+      const mesh = scene.getMeshByName(meshName);
+      for (const { family, geneIndex } of mesh.TOX_metadata) {
+        if (geneIndex !== undefined) {
+          config.familySet(family, "PickedGene", true, geneIndex, false);
+        }
+      }
+    }
+  }
+
+  for (const setting of ["tissueX", "tissueY", "tissueZ", "scale", "Diameter"]) {
+    config.onChange(setting, repick, 1);
+    config.onChange(setting, update);
   }
 }
 
 function setupCentroidPicking(scene) {
-  function pick(evt) {
-    const { family, value } = evt.detail;
+  function pick({ family, value }) {
     const mesh = scene.getMeshByName("pickedSphere");
     if (value) {
       const { centroid } = dataHandler.getFamilyData(family, config.get("tissueX"), config.get("tissueY"), config.get("tissueZ"));
@@ -184,13 +183,32 @@ function setupCentroidPicking(scene) {
       selectionMeshPick(mesh, family, undefined, "Centroid");
     }
   }
-  document.addEventListener("PickedCentroid", pick);
-  document.addEventListener("PickedCentroidUpdated", () => dynamicThinInstanceBufferUpdated(scene.getMeshByName("pickedSphere")));
+  config.onChange("PickedCentroid", pick, null);
+
+  function update() {
+    dynamicThinInstanceBufferUpdated(scene.getMeshByName("pickedSphere"));
+  }
+  config.onChange("PickedCentroid", update);
+
+  function repick() {
+    for (const meshName of ["pickedSphere", "pickedOctahedron"]) {
+      const mesh = scene.getMeshByName(meshName);
+      for (const { family, geneIndex } of mesh.TOX_metadata) {
+        if (geneIndex === undefined) {
+          config.familySet(family, "PickedCentroid", true, geneIndex, false);
+        }
+      }
+    }
+  }
+
+  for (const setting of ["tissueX", "tissueY", "tissueZ", "scale", "Diameter"]) {
+    config.onChange(setting, repick, 1);
+    config.onChange(setting, update);
+  }
 }
 
 function setupVectorPicking(scene) {
-  function pick(evt) {
-    const { family, gene, value } = evt.detail;
+  function pick({ family, gene, value }) {
     if (value) {
       const matrices = createVectorPartsInstanceMatrices(family, gene, .001);
       selectionMeshPick(scene.getMeshByName("pickedVectorShaft"), family, gene, "ShiftVector", matrices.shaft);
@@ -200,11 +218,14 @@ function setupVectorPicking(scene) {
       selectionMeshPick(scene.getMeshByName("pickedVectorHead"), family, gene, "ShiftVector", undefined, false);
     }
   }
-  document.addEventListener("PickedShiftVector", pick);
-  document.addEventListener("PickedShiftVectorUpdated", () => {
+  config.onChange("PickedShiftVector", pick, null);
+
+  function update() {
     dynamicThinInstanceBufferUpdated(scene.getMeshByName("pickedVectorShaft"));
     dynamicThinInstanceBufferUpdated(scene.getMeshByName("pickedVectorHead"));
-  });
+  }
+
+  config.onChange("PickedShiftVector", update);
 
   function repick() {
     for (const meshName of ["pickedVectorShaft", "pickedVectorHead"]) {
@@ -213,10 +234,10 @@ function setupVectorPicking(scene) {
         config.familySet(family, "PickedShiftVector", true, geneIndex, false);
       }
     }
-    document.dispatchEvent(new CustomEvent("PickedShiftVectorUpdated"));
   }
-  for (const setting of ["tissueX", "tissueY", "tissueZ", "scale", "Diameter", "defaultDiameter"]) {
-    document.addEventListener(setting, repick);
+  for (const setting of ["tissueX", "tissueY", "tissueZ", "scale", "Diameter"]) {
+    config.onChange(setting, repick);
+    config.onChange(setting, update, 1);
   }
 }
 

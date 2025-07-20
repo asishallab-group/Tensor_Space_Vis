@@ -99,38 +99,44 @@ export function setupFamilyHullMesh(scene) {
 
   hull.material = Material(scene, null, {wireframe: true});
 
-  function createHull(evt) {
-    const { family, gene, value } = evt.detail;
-    if (value) {
-      const scale = config.get("scale");
-      const familyData = dataHandler.getFamilyData(family, config.get("tissueX"), config.get("tissueY"), config.get("tissueZ"));
-      const centroid = Vector(...familyData.centroid.map(v => v*scale));
-      const stdDevs = familyData.stdDevs.map(v => v*scale);
-      const color = Color(config.familyGet(family, "Color")).scale(2);
-      color.a /= 2;
+  {
+    function create({ family, gene, value }) {
+      if (value) {
+        const scale = config.get("scale");
+        const familyData = dataHandler.getFamilyData(family, config.get("tissueX"), config.get("tissueY"), config.get("tissueZ"));
+        const centroid = Vector(...familyData.centroid.map(v => v*scale));
+        const stdDevs = familyData.stdDevs.map(v => v*scale);
+        const color = Color(config.familyGet(family, "Color")).scale(2);
+        color.a /= 2;
 
-      const instanceMatrix = getInstanceMatrix(
-        centroid,
-        Vector(stdDevs[0] * 3, stdDevs[1] * 2, stdDevs[2] * 3)
-      );
+        const instanceMatrix = getInstanceMatrix(
+          centroid,
+          Vector(stdDevs[0] * 3, stdDevs[1] * 2, stdDevs[2] * 3)
+        );
 
-      createDynamicThinInstance(hull, family, undefined, instanceMatrix, color);
-    } else {
-      removeDynamicThinInstance(hull, family);
+        createDynamicThinInstance(hull, family, undefined, instanceMatrix, color);
+      } else {
+        removeDynamicThinInstance(hull, family);
+      }
     }
+
+    config.onChange("Hull", create, null);
   }
 
-  document.addEventListener("Hull", createHull);
-  document.addEventListener("HullUpdated", () => dynamicThinInstanceBufferUpdated(hull));
+  function update() {
+    dynamicThinInstanceBufferUpdated(hull);
+  }
+  config.onChange("Hull", update);
 
   function recreate() {
+    hull.TOX_instanceCount = 0;
     for (const { family } of hull.TOX_metadata) {
       config.familySet(family, "Hull", true, undefined, false);
     }
-    document.dispatchEvent(new CustomEvent("HullUpdated"));
   }
   for (const setting of ["tissueX", "tissueY", "tissueZ", "scale", "Color", "darkMode"]) {
-    document.addEventListener(setting, recreate);
+    config.onChange(setting, recreate, 1);
+    config.onChange(setting, update);
   }
 }
 
@@ -169,36 +175,42 @@ export function setupShiftVectorMesh(scene) {
   const shiftVectorHead = Mesh.Cone(scene, "shiftVectorHead");
   setupDynamicThinInstanceMesh(shiftVectorHead);
 
-  document.addEventListener("ShiftVector", evt => {
-    const { family, gene, value } = evt.detail;
-    if (value) {
-      const matrices = createVectorPartsInstanceMatrices(family, gene);
+  {
+    function create({ family, gene, value }) {
+      if (value) {
+        const matrices = createVectorPartsInstanceMatrices(family, gene);
 
-      let color = Color(config.familyGet(family, "Color"));
-      const colorScale = 1 / Math.max(color.r, color.g, color.b);
-      color = color.scale(colorScale);
-      color.a /= colorScale;
-      createDynamicThinInstance(shiftVectorShaft, family, gene, matrices.shaft, color);
-      createDynamicThinInstance(shiftVectorHead, family, gene, matrices.head, color);
-    } else {
-      removeDynamicThinInstance(shiftVectorHead, family, gene);
-      removeDynamicThinInstance(shiftVectorShaft, family, gene);
-    }
-  });
+        let color = Color(config.familyGet(family, "Color"));
+        const colorScale = 1 / Math.max(color.r, color.g, color.b);
+        color = color.scale(colorScale);
+        color.a /= colorScale;
+        createDynamicThinInstance(shiftVectorShaft, family, gene, matrices.shaft, color);
+        createDynamicThinInstance(shiftVectorHead, family, gene, matrices.head, color);
+      } else {
+        removeDynamicThinInstance(shiftVectorHead, family, gene);
+        removeDynamicThinInstance(shiftVectorShaft, family, gene);
+      }
+    };
 
-  document.addEventListener("ShiftVectorUpdated", () => {
+    config.onChange("ShiftVector", create, null);
+  }
+
+  function update() {
     dynamicThinInstanceBufferUpdated(shiftVectorHead);
     dynamicThinInstanceBufferUpdated(shiftVectorShaft);
-  });
+  }
+  config.onChange("ShiftVector", update);
 
   function recreate() {
+    shiftVectorHead.TOX_instanceCount = 0;
+    shiftVectorShaft.TOX_instanceCount = 0;
     for (const { family, geneIndex } of shiftVectorHead.TOX_metadata) {
       config.familySet(family, "ShiftVector", true, geneIndex, false);
     }
-    document.dispatchEvent(new CustomEvent("ShiftVectorUpdated"));
   }
-  for (const setting of ["tissueX", "tissueY", "tissueZ", "scale", "Diameter", "defaultDiameter", "Color", "darkMode"]) {
-    document.addEventListener(setting, recreate);
+  for (const setting of ["tissueX", "tissueY", "tissueZ", "scale", "Diameter", "Color", "darkMode"]) {
+    config.onChange(setting, recreate, 1);
+    config.onChange(setting, update);
   }
 }
 
@@ -213,16 +225,14 @@ export function setupSelectionMeshes(scene) {
   const highlightLayer = new BABYLON.HighlightLayer("highlight", scene);
 
   {
-    function setHighlightColor(evt) {
-      const color = Color(evt.detail);
+    function setHighlightColor({ value }) {
+      const color = Color(value);
       for (const mesh of meshes) {
         highlightLayer.removeMesh(mesh);
         highlightLayer.addMesh(mesh, color);
       }
     }
-    document.addEventListener("selectedDataPointColor", setHighlightColor);
-    document.addEventListener("darkMode", () => setHighlightColor({ detail: config.get("selectedDataPointColor") }));
-    setHighlightColor({ detail: config.get("selectedDataPointColor") });
+    config.onChange("selectedDataPointColor", setHighlightColor);
   }
 
   const material =  Material(scene, null, {color: Color(0, 0, 0, 0)});

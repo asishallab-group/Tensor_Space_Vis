@@ -21,7 +21,6 @@ const DEFAULTS = {
     tissueX: "Liver",
     tissueY: "Heart",
     tissueZ: "Lung",
-    defaultDiameter: 0.25
   },
   lightMode: {
     selectedDataPointColor: "#FFFF00FF",
@@ -51,10 +50,35 @@ export async function setupConfig() {
     darkMode: {}
   };
 
-  let familyKeyTypes;
+  const familyKeyTypes = {
+    ShiftVector: { type: "boolean", default: () => false, supportsGeneRelated: true },
+    Centroid: { type: "boolean", default: () => false, supportsFamilyRelated: true },
+    Hull: { type: "boolean", default: () => false, supportsFamilyRelated: true },
+    Color: { type: "string", default: (family) => dataHandler.getColor(family), supportsGeneRelated: true, supportsFamilyRelated: true },
+    Diameter: { type: "number", default: () => 0.25, supportsGeneRelated: true },
+    PickedGene: { type: "boolean", default: () => false, supportsGeneRelated: true },
+    PickedShiftVector: { type: "boolean", default: () => false, supportsGeneRelated: true },
+    PickedCentroid: { type: "boolean", default: () => false, supportsFamilyRelated: true },
+  };
   
   const callbacks = {};
-  const validate = getValidator();
+  const updated = new Map();
+  function callCallbacks(key, value, update) {
+    const registeredCallbacks = callbacks[key] ?? [];
+    for (let callback of registeredCallbacks) {
+      if (update || callback.updatePriority === null) {
+        callback(value);
+      } else {
+        if (!updated.has(callback.updatePriority)) {
+          updated.set(callback.updatePriority, new Set([callback]));
+        } else {
+          updated.get(callback.updatePriority).add(callback);
+        }
+      }
+    }
+  }
+
+  const validate = getValidator(familyKeyTypes);
 
   const config = {
     get(key) {
@@ -74,15 +98,18 @@ export async function setupConfig() {
       if (DEFAULTS.allModes[key] !== undefined || !key.endsWith("Color")) values.allModes[key] = value;
       else if (this.get("darkMode")) values.darkMode[key] = value;
       else values.lightMode[key] = value;
-      
+
       const { family, keyType, gene } = splitFamilyKey(key) ?? {};
       if (keyType !== undefined) {
-        document.dispatchEvent(new CustomEvent(keyType, { detail: { family, gene, value } }));
-        if (update) {
-          document.dispatchEvent(new CustomEvent(keyType + "Updated"));
+        const { supportsGeneRelated, supportsFamilyRelated } = familyKeyTypes[keyType];
+        if (!supportsFamilyRelated && gene === undefined) {
+          throw new Error(`Setting '${keyType}' is related to single genes, setting value for whole family is not supported`);
+        } else if (!supportsGeneRelated && gene !== undefined) {
+          throw new Error(`Setting '${keyType}' is related to the whole family, setting value for single gene is not supported`);
         }
-      } else if (update) {
-        document.dispatchEvent(new CustomEvent(key, { detail: value }));
+        callCallbacks(keyType, { family, gene, value }, update);
+      } else {
+        callCallbacks(key, { value }, update);
       }
     },
     familySet(familyIndex, key, value, geneIndex, update) {
@@ -90,6 +117,23 @@ export async function setupConfig() {
     },
     familyGet(familyIndex, key, geneIndex) {
       return this.get(createFamilyKey(familyIndex, key, geneIndex));
+    },
+    onChange(key, callback, updatePriority=0) {
+      callbacks[key] ??= [];
+      callback.updatePriority = updatePriority;
+      callback.key = key;
+      callbacks[key].push(callback);
+      callbacks[key].sort((a, b) => b.updatePriority - a.updatePriority);
+    },
+    update() {
+      const queue = [...updated].sort(([a], [b]) => b-a);  // descending
+      updated.clear();
+
+      for (const [, callbacksToUpdate] of queue) {
+        for (const callback of callbacksToUpdate) {
+          callback({ value: this.get(callback.key) });
+        }
+      }
     },
     async asURL() {
       const currentURL = new URL(document.URL);
@@ -123,23 +167,21 @@ export async function setupConfig() {
       // Clean up
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
+    },
+    init() {
+      for (const [key, value] of Object.entries({...DEFAULTS.allModes, ...values.allModes})) {
+        const { family, keyType, gene } = splitFamilyKey(key) ?? {};
+        if (keyType !== undefined) {
+          config.familySet(family, keyType, value, gene, false);
+        } else {
+          config.set(key, value, false);
+        }
+      }
+      config.update();
     }
   }
 
   Object.freeze(config);
-
-  familyKeyTypes = {
-    ShiftVector: { type: "boolean", default: () => false },
-    Centroid: { type: "boolean", default: () => false },
-    Hull: { type: "boolean", default: () => false },
-    Color: { type: "string", default: (family) => dataHandler.getColor(family) },
-    OutlierColor: { type: "string", default: (family) => config.get(`${family}_Color`) },
-    Diameter: { type: "number", default: () => config.get("defaultDiameter") },
-    OutlierDiameter: { type: "number", default: () => config.get("defaultDiameter") },
-    PickedGene: { type: "boolean", default: () => false },
-    PickedShiftVector: { type: "boolean", default: () => false },
-    PickedCentroid: { type: "boolean", default: () => false },
-  };
 
   config.set("darkMode", window.matchMedia('(prefers-color-scheme: dark)').matches);
 
@@ -149,39 +191,42 @@ export async function setupConfig() {
     if (configArg) {
       const decode = await getCompressor(familyKeyTypes);
       const importingConfig = await decode(configArg, true);
-
       values.allModes = importingConfig.allModes;
       values.lightMode = importingConfig.lightMode;
       values.darkMode = importingConfig.darkMode;
     }
   } catch (err) {
-    console.error("Could not import config from URL");
+    console.error("Could not import config from URL", err);
   }
 
-  document.addEventListener("initialTrigger", evt => {
-    const unchunked = new Set(evt.detail);
-
-    for (const settings of Object.values(values)) {
-      for (const [key, value] of Object.entries(settings)) {
+  config.onChange("darkMode", function({ value }) {
+    const mode = value ? "darkMode" : "lightMode";
+    for (const [key, value] of Object.entries({...DEFAULTS[mode], ...values[mode]})) {
+      if (key !== "darkMode") {
         const { family, keyType, gene } = splitFamilyKey(key) ?? {};
-        if (unchunked.has(keyType)) {
-          document.dispatchEvent(new CustomEvent(keyType, { detail: { family, gene, value } }));
+        if (keyType !== undefined) {
+          config.familySet(family, keyType, value, gene, false);
+        } else {
+          config.set(key, value, false);
         }
       }
     }
+  }, 1);
 
-    for (const key of unchunked) {
-      document.dispatchEvent(new CustomEvent(key + "Updated"));
-    }
-  }, { once: true });
+  config.onChange("darkMode", config.update.bind(config));
 
   return config;
 }
 
+
 function familyDefault(key, familyKeyTypes) {
-  const [family, keyType, gene] = key.match(/^(\d+)_(\D+)(:\d+)?$/)?.slice(1) ?? [];
+  const { family, keyType, gene } = splitFamilyKey(key) ?? {};
   if (keyType !== undefined) {
-    return familyKeyTypes[keyType].default(family);
+    if (gene === undefined) {
+      return familyKeyTypes[keyType]?.default(family);
+    } else {
+      return config.get(createFamilyKey(family, keyType));
+    }
   } else if (key === "shownFamilies") {
     return dataHandler.families;
   }

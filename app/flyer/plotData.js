@@ -23,12 +23,4 @@ export function plotData(scene) {
   setupFamilyHullMesh(scene);
   setupShiftVectorMesh(scene);
   setupPicking(getChunks(scene));
-
-  document.dispatchEvent(new CustomEvent("initialTrigger", { detail: [
-    "Hull",
-    "ShiftVector",
-    "PickedGene",
-    "PickedCentroid",
-    "PickedShiftVector"
-  ]}));
 }
