@@ -236,8 +236,8 @@ function setupVectorPicking(scene) {
     }
   }
   for (const setting of ["tissueX", "tissueY", "tissueZ", "scale", "Diameter"]) {
-    config.onChange(setting, repick);
-    config.onChange(setting, update, 1);
+    config.onChange(setting, repick, 1);
+    config.onChange(setting, update);
   }
 }
 
