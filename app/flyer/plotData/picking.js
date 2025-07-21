@@ -120,7 +120,7 @@ function setupGenePicking(scene) {
     const { coordinates, is_outlier } = dataHandler.getGeneData(family, gene, [config.get("tissueX"), config.get("tissueY"), config.get("tissueZ")], ["is_outlier"]);
     const mesh = scene.getMeshByName(`picked${is_outlier ? "Octahedron" : "Sphere"}`);
     if (value) {
-      const diameter = (config.familyGet(family, "Diameter")) + .001;
+      const diameter = (config.familyGet(family, "Diameter", gene)) + .001;
       const scale = config.get("scale");
       selectionMeshPick(
         mesh,
@@ -228,11 +228,9 @@ function setupVectorPicking(scene) {
   config.onChange("PickedShiftVector", update);
 
   function repick() {
-    for (const meshName of ["pickedVectorShaft", "pickedVectorHead"]) {
-      const mesh = scene.getMeshByName(meshName);
-      for (const { family, geneIndex } of mesh.TOX_metadata) {
-        config.familySet(family, "PickedShiftVector", true, geneIndex, false);
-      }
+    const mesh = scene.getMeshByName("pickedVectorShaft");
+    for (const { family, geneIndex } of mesh.TOX_metadata) {
+      config.familySet(family, "PickedShiftVector", true, geneIndex, false);
     }
   }
   for (const setting of ["tissueX", "tissueY", "tissueZ", "scale", "Diameter"]) {
