@@ -1,7 +1,7 @@
 /* Ensure full size for the HTML body and remove scrollbars */
 html, body {
-  width: 100vw;
-  height: 100vh;
+  width: 100dvw;
+  height: 100dvh;
   margin: 0;
   overflow: hidden;
 
@@ -42,7 +42,7 @@ main {
   user-select: auto;
   pointer-events: auto;
 }
-.clickable {
+.clickable:not([disabled]) {
   pointer-events: auto;
   cursor: pointer;
 }
@@ -141,6 +141,11 @@ main {
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
 }
 
+.datatable a {
+  color: blue;
+  text-decoration: underline;
+}
+
 .datatable thead {
   background-color: #2c3e50;
   color: #ecf0f1;
@@ -169,6 +174,10 @@ main {
 /* Zebra striping for readability */
 .datatable tbody tr:nth-child(even) {
   background-color: #f9f9f9;
+}
+
+.datatable tbody tr.selected {
+  background-color: rgba(0, 0, 0, 0.3); /* dark overlay */
 }
 
 /* Optional: rounded corners on the top row */
