@@ -260,16 +260,16 @@ function registerLoading(chunks) {
 
     if (!chunks.currentChunkCentroid.every((axis, i) => axis === newChunkCentroid[i])) {
       const newActive = calcActiveChunks(chunks, newChunkCentroid);
-      newActive.forEach((centroid) => {
-        if (!chunks.active.includes(centroid)) {
-          chunks.load(true, centroid);
-        }
-      });
-      chunks.active.forEach((centroid, i) => {
+      for (const centroid of chunks.active) {
         if (!newActive.includes(centroid)) {
           chunks.load(false, centroid);
         }
-      });
+      }
+      for (const centroid of newActive) {
+        if (!chunks.active.includes(centroid)) {
+          chunks.load(true, centroid);
+        }
+      }
       chunks.active = newActive;
       chunks.currentChunkCentroid = newChunkCentroid;
     }

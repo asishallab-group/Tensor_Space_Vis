@@ -85,7 +85,8 @@ export function removeDynamicThinInstance(mesh, family, geneIndex) {
       remove(mesh.TOX_colorBuffer, 4);
     }
 
-    mesh.TOX_metadata[index] = mesh.TOX_metadata.pop();
+    mesh.TOX_metadata[index] = mesh.TOX_metadata.at(-1);
+    mesh.TOX_metadata.splice(-1);
     mesh.TOX_instanceCount--;
 
     return true;
@@ -145,25 +146,27 @@ export function createVectorPartsInstanceMatrices(family, geneIndex, grow=0) {
   const tissues = [config.get("tissueX"), config.get("tissueY"), config.get("tissueZ")];
 
   const centroid = Vector(...dataHandler.getFamilyData(family, ...tissues).centroid.map(v => v*scale));
-  const sphereDiameter = config.familyGet(family, "Diameter");
+  const familyDiameter = config.familyGet(family, "Diameter");
+  const sphereDiameter = config.familyGet(family, "Diameter", geneIndex);
 
   const { coordinates } = dataHandler.getGeneData(family, geneIndex, tissues, []);
   const genePos = Vector(...coordinates.map(v => v*scale));
   const direction = genePos.subtract(centroid);
   const vectorLength = direction.length() - sphereDiameter / 2;
-  const shaftLengthScale = 1 - 2 * sphereDiameter / vectorLength;
-  const shaftPosition = centroid.add(direction.scale(shaftLengthScale / 2));
-  const headPosition = centroid.add(direction.scale(shaftLengthScale + sphereDiameter / vectorLength / 2));
+  const headLength = familyDiameter * 2;
+  const shaftLength = vectorLength - headLength;
+  const shaftPosition = centroid.add(direction.scale(shaftLength / 2 / direction.length()));
+  const headPosition = centroid.add(direction.scale((shaftLength + headLength / 2) / direction.length()));
 
   return {
     shaft: getInstanceMatrix(
       shaftPosition,
-      Vector(sphereDiameter / 2 + grow, vectorLength * shaftLengthScale + grow, sphereDiameter / 2 + grow),
+      Vector(familyDiameter / 2 + grow, shaftLength + grow, familyDiameter / 2 + grow),
       genePos
     ),
     head: getInstanceMatrix(
       headPosition,
-      Vector(sphereDiameter + grow, sphereDiameter * 2 + grow, sphereDiameter + grow),
+      Vector(familyDiameter + grow, headLength + grow, familyDiameter + grow),
       genePos
     )
   };

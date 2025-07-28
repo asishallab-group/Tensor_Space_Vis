@@ -4,6 +4,7 @@ export function setupGUI() {
   createUIdiv();
   createPickedDetailsDialog();
   switchToDetails("Gene");
+  setupConfigCallbacks();
 
   let pickedCount = 0;
   document.addEventListener("pick", evt => {
@@ -23,6 +24,57 @@ export function setupGUI() {
   });
 }
 
+function setupConfigCallbacks() {
+  function setText(cell, value) {
+    if (typeof value === "boolean") {
+      cell.innerText = value ? "Visible" : "Hidden";
+    } else {
+      cell.innerText = value;
+    }
+  }
+
+  for (const familyRelated of ["ShiftVector", "Centroid", "Hull", "Color", "Diameter", "PickedGene", "PickedShiftVector", "PickedCentroid"]) {
+    config.onChange(familyRelated, ({ family, gene, value }) => {
+      for (const cell of document.getElementsByClassName(familyRelated)) {
+        const tr = cell.closest("tr");
+        if (tr.getAttribute("tox-family") == family && tr.getAttribute("tox-gene") == gene) {
+          setText(cell, value);
+          break;
+        }
+      }
+    }, null);
+  }
+
+  for (const tissue of ["tissueX", "tissueY", "tissueZ"]) {
+    config.onChange(tissue, ({ value }) => {
+      for (const cell of document.getElementsByClassName(tissue)) {
+        if (cell.classList.contains("data")) {
+          const tr = cell.closest("tr");
+          const family = tr.getAttribute("tox-family");
+          const gene = tr.getAttribute("tox-gene");
+          let data;
+          if (gene === "undefined") {
+            [data] = dataHandler.getFamilyData(family, value).centroid;
+          } else {
+            [data] = dataHandler.getGeneData(family, gene, [value], []).coordinates;
+          }
+          setText(cell, data.toFixed(3));
+        } else {
+          setText(cell, value);
+        }
+      }
+    }, null);
+  }
+
+  for (const nonFamilyRelated of ["orbitMode", "darkMode", "x", "y", "z", "rotationX", "rotationY", "orbitModeTargetDistance", "mouseSensibility", "movementSpeed", "scale", "chunkDiameter", "chunkLoadRange", "shownFamilies", "selectedDataPointColor", "backgroundColor", "xAxisColor", "yAxisColor", "zAxisColor"]) {
+    config.onChange(nonFamilyRelated, ({ value }) => {
+      for (const cell of document.getElementsByClassName(nonFamilyRelated)) {
+        cell.innerText = value;
+      }
+    }, null);
+  }
+}
+
 function appendDetailRow({ family, gene, type }) {
   const id = `${family}.${gene}.${type}`;
   let data;
@@ -33,8 +85,8 @@ function appendDetailRow({ family, gene, type }) {
     data = dataHandler.getGeneData(family, gene);
   }
   const table = document.getElementById(type + "DetailsTable");
-  const row = createElement("tr", { id });
-  row.appendChild(createRowSelector());
+  const row = createElement("tr", { id, "tox-family": family, "tox-gene": gene });
+  row.appendChild(createRowSelector(false, family, gene, type));
 
   const dataMap = getDetailsTableDataMap();
   for (const cell of dataMap[type]) {
@@ -47,13 +99,15 @@ function appendDetailRow({ family, gene, type }) {
 }
 
 function switchToDetails(type) {
-  for (const table of document.getElementsByClassName("detailsTable")) {
-    table.hidden = table.id !== type + "DetailsTable";
+  for (const tableUI of document.getElementsByClassName("detailsTable")) {
+    tableUI.hidden = tableUI.querySelector("#" + type + "DetailsTable") === null;
   }
 }
 
 function removeDetailRow({ family, gene, type }) {
-  document.getElementById(`${family}.${gene}.${type}`)?.remove();
+  const row = document.getElementById(`${family}.${gene}.${type}`);
+  row?.querySelector(".row-selector").click();
+  row?.remove();
 }
 
 function createPickedDetailsDialog() {
@@ -75,29 +129,13 @@ function createPickedDetailsDialog() {
         })
         menu.appendChild(menuItem);
 
-        const tr = createElement("tr", { id: pickType + "DetailsHeader" });
-        tr.appendChild(createRowSelector(true));
+        const table = createMasterTable([], null, headers);
+        table.id = pickType + "DetailsTable";
 
-        for (const header of headers) {
-          const th = createElement("th", {
-            children: [header.title]
-          });
-          tr.appendChild(th);
-        }
-        const table = createElement("table", {
-          id: pickType + "DetailsTable",
-          hidden: true,
-          children: [
-            createElement("thead", { children: [tr] }),
-            createElement("tbody")
-          ],
-          classes: [
-            "detailsTable",
-            "datatable",
-            "textselect"
-          ]
-        });
-        tables.appendChild(table);
+        const tableUI = createTableUI(table, pickType === "Gene" ? "Details" : undefined);
+        tableUI.hidden = true;
+        tableUI.classList.add("detailsTable");
+        tables.appendChild(tableUI);
       }
       const pickedDetails = createElement("dialog", {
         id: "pickedDetails",
@@ -106,20 +144,24 @@ function createPickedDetailsDialog() {
           tables
         ]
       });
+      pickedDetails.addEventListener("close", () => config.update());
       document.getElementById("UI")?.appendChild(pickedDetails);
     }
   }
 }
 
-function createRowSelector(selectAll=false) {
+function createRowSelector(selectAll, family, gene, type) {
   const checkbox = createElement("input", { type: "checkbox", classes: ["clickable"] });
   if (selectAll) {
+    checkbox.id = "selectAll";
     checkbox.addEventListener("change", evt => {
       const table = evt.target.closest("table");
-      const changeEvent = new Event("change");
+      const changeEvent = new Event("change", {bubbles: true});
       for (const checkbox of table.getElementsByClassName("row-selector")) {
-        checkbox.checked = evt.target.checked;
-        checkbox.dispatchEvent(changeEvent);
+        if (checkbox.checked !== evt.target.checked) {
+          checkbox.checked = evt.target.checked;
+          checkbox.dispatchEvent(changeEvent);
+        }
       }
     })
   } else {
@@ -127,60 +169,191 @@ function createRowSelector(selectAll=false) {
     checkbox.addEventListener("change", evt => {
       const tr = evt.target.closest("tr");
       tr.classList.toggle("selected", evt.target.checked);
+      if (!evt.target.checked) {
+        evt.target.closest("table").querySelector("#selectAll").checked = false;
+      }
     })
   }
-  return createElement(selectAll ? "th": "td", {
+  const element = createElement(selectAll ? "th": "td", {
     children: [checkbox],
-    classes: ["center"]
-  })
+    classes: ["center", "clickable"]
+  });
+
+  element.addEventListener("click", function (evt) {
+    if (evt.target === this) {
+      this.firstChild.click();
+    }
+  });
+
+  return element;
+}
+
+function createCustomizationTable(table) {
+  const elements = [];
+  for (const selectedRow of table.getElementsByClassName("selected")) {
+    elements.push({
+      family: selectedRow.getAttribute("tox-family"),
+      gene: selectedRow.getAttribute("tox-gene")
+    });
+  }
+
+  function dataFunc(key) {
+    return function (geneData, familyIdx, geneIdx) {
+      return createElement("span", { classes: [key], innerText: config.familyGet(familyIdx, key, geneIdx)});
+    }
+  }
+
+  function booleanInput(key) {
+    return function(geneData, familyIdx, geneIdx) {
+      const content = createButton({
+        key,
+        classes: [key],
+        innerText: config.familyGet(familyIdx, key, geneIdx) ? "Visible" : "Hidden"
+      });
+      content.addEventListener("click", evt => {
+        config.familySet(familyIdx, key, !config.familyGet(familyIdx, key, geneIdx), geneIdx, false);
+      });
+      return content;
+    }
+  }
+
+  function input(key, type) {
+    return function(geneData, familyIdx, geneIdx) {
+      const value = config.familyGet(familyIdx, key, geneIdx);
+      const content = createElement("input", {
+        type,
+        key,
+        classes: [key, "textselect"],
+        innerText: value,
+        value: type === "color" ? value.slice(0, 7) : value
+      });
+      return content;
+    }
+  }
+
+  const headers = [
+    { title: "Gene", data(geneData) {return geneData.genes} },
+    { title: "Family", data(geneData) {return geneData.family} },
+    { title: "Type", data(geneData) {return geneData.is_outlier ? "Outlier" : "Inlier"} },
+    { title: "Shift Vector", data: booleanInput("ShiftVector") },
+    // { title: "Centroid", data: dataFunc("Centroid")},
+    // { title: "Hull", data: dataFunc("Hull")},
+    { title: "Color", data: input("Color", "color")},
+    { title: "Diameter", data: input("Diameter", "number")},
+  ];
+
+  return createMasterTable(elements, (family, gene) => dataHandler.getGeneData(family, gene), headers);
+}
+
+function createTableUI(table, type) {
+  const doneButton = createButton({ innerText: "Done" });
+  doneButton.addEventListener("click", function () {this.closest("dialog").close()});
+  switch (type) {
+    case "Details": {
+      let selectedRowCount = 0;
+
+      const customizationButton = createButton({
+        innerText: "Customize",
+        disabled: true,
+      });
+      customizationButton.addEventListener("click", function () {
+        if (selectedRowCount > 0) {
+          function applyChanges() {
+            for (const input of this.querySelectorAll("input[key]")) {
+              const tr = input.closest("tr");
+              const family = tr.getAttribute("tox-family");
+              const gene = tr.getAttribute("tox-gene");
+              switch (input.type) {
+                case "number": {
+                  config.familySet(family, input.getAttribute("key"), Number(input.value), gene, false);
+                  break;
+                }
+                default: {
+                  config.familySet(family, input.getAttribute("key"), input.value, gene, false);
+                  break;
+                }
+              }
+            }
+          }
+          show(createTableUI(createCustomizationTable(table), "Customize"), applyChanges);
+        }
+      })
+
+      table.addEventListener("change", evt => {
+        if (evt.target.classList.contains("row-selector")) {
+          if (evt.target.checked) {
+            selectedRowCount++;
+          } else {
+            selectedRowCount--;
+          }
+          customizationButton.disabled = selectedRowCount === 0;
+        }
+      });
+      const bottom = createElement("center", { children: [customizationButton, doneButton] });
+      return createElement("section", { children: [table, bottom] });
+    }
+    case "SingleDetails":
+    case "Customize":
+    default: {
+      const bottom = createElement("center", { children: [doneButton] });
+      return createElement("section", { children: [table, bottom] });
+    }
+  }
 }
 
 function getDetailsTableDataMap() {
+  const dataMap = {};
+
   const tissues = dataHandler.tissues;
   const links = {
     family: {
       title: "Family",
       data(geneData, familyIdx, geneIdx) {
-        return showSingleDetails(geneData, geneData["family"], [
-          { title: "Identifier", data() {return geneData["family"]}},
-          { title: "Gene Count", data() {return dataHandler.getGeneCount(familyIdx)}},
+        return createLinkElement(geneData.family, () => createTableUI(createSingleDetailsTable(geneData, familyIdx, geneIdx, [
+          { title: "Identifier", data() {return geneData.family} },
+          {
+            title: "Genes",
+            data() {
+              return createLinkElement(`Inspect ${dataHandler.getGeneCount(familyIdx)} members`, () => createTableUI(createMasterTable(
+                dataHandler.genes(familyIdx).map(gene => ({family: familyIdx, gene})),
+                (family, gene) => dataHandler.getGeneData(family, gene),
+                dataMap.Gene
+              ), "Details"))
+            }
+          },
           { title: "Description", data() {return "..."}},
-        ]);
+        ]), "SingleDetails"));
       }
     },
-    gene: { 
+    gene: {
       title: "Gene",
       data(geneData, familyIdx, geneIdx) {
-        return showSingleDetails(geneData, geneData["genes"], [
-          { title: "Identifier", data() {return geneData["genes"]} },
+        return createLinkElement(geneData.genes, () => createTableUI(createSingleDetailsTable(geneData, familyIdx, geneIdx, [
+          { title: "Identifier", data() {return geneData.genes } },
           links.family,
-          { title: "Species", data() {return geneData["species"]} },
+          { title: "Type", data(geneData) {return geneData.is_outlier ? "Outlier" : "Inlier"} },
+          { title: "Species", data() {return geneData.species} },
           { title: "Description", data() {return "..."} },
           ...tissues.map((tissue, i) => {
             return { title: tissue, data() {return geneData.coordinates[i]} }
           })
-        ]);
-      } 
+        ]), "SingleDetails"));
+      }
     }
   }
   function tissueRelatedHeader(key) {
-    function createValueElement(tissueData) {
-      const valueElement = createElement("span");
-      valueElement.innerText = tissueData[tissues.indexOf(config.get(key))].toFixed(3);
-      config.onChange(key, function ({ value }) {
-        valueElement.innerText = tissueData[tissues.indexOf(value)].toFixed(3);
-      });
-      return valueElement;
-    }
     return {
       get title() {
-        const title = createElement("span");
-        title.innerText = config.get(key);
-        config.onChange(key, ({ value }) => title.innerText = value);
-        return title;
+        return createElement("span", {
+          classes: [key],
+          innerText: config.get(key)
+        });
       },
       data(geneData) {
-        return createValueElement(geneData.coordinates);
+        return createElement("span", {
+          classes: [key, "data"],
+          innerText: geneData.coordinates[tissues.indexOf(config.get(key))].toFixed(3)
+        });
       }
     };
   }
@@ -188,49 +361,90 @@ function getDetailsTableDataMap() {
     tissueRelatedHeader("tissueX"),
     tissueRelatedHeader("tissueY"),
     tissueRelatedHeader("tissueZ")
-  ]
-  return {
-    Gene: [
-      links.gene,
-      links.family,
-      ...tissueRelated
-    ],
-    ShiftVector: [
-      links.gene,
-      links.family
-    ],
-    Centroid: [
-      links.family,
-      ...tissueRelated
-    ]
-  };
+  ];
+
+  dataMap.Gene = [
+    links.gene,
+    links.family,
+    { title: "Type", data(geneData) {return geneData.is_outlier ? "Outlier" : "Inlier"} },
+    ...tissueRelated
+  ];
+  dataMap.ShiftVector = [
+    links.gene,
+    links.family
+  ];
+  dataMap.Centroid = [
+    links.family,
+    ...tissueRelated
+  ];
+  return dataMap;
 }
 
-function showSingleDetails(geneData, value, headerMap) {
+function createMasterTable(elements, getData, headerMap, bodyOnly=false) {
+  const tbody = createElement("tbody");
+
+  for (const { family, gene } of elements) {
+    const row = createElement("tr", { "tox-family": family, "tox-gene": gene });
+    row.appendChild(createRowSelector(false, family, gene, "Gene"));
+
+    const data = getData(family, gene);
+    for (const cell of headerMap) {
+      const td = createElement("td", {
+        children: [cell.data(data, family, gene)]
+      });
+      row.appendChild(td);
+    }
+
+    tbody.appendChild(row);
+  }
+
+  if (bodyOnly) {
+    return tbody;
+  } else {
+    const headerCells = headerMap.map(({ title }) => createElement("th", { children: [title] }))
+    const thead = createElement("thead", {
+      children: [createElement("tr", { children: [createRowSelector(true), ...headerCells] })]
+    });
+
+    return createDataTable({ children: [thead, tbody]});
+  }
+}
+
+function createSingleDetailsTable(geneData, familyIdx, geneIdx, headerMap) {
+  const tBody = createElement("tbody");
+  for (const header of headerMap) {
+    const tr = createElement("tr", {
+      children: [
+        createElement("td", { children: [header.title] }),
+        createElement("td", { children: [header.data(geneData, familyIdx, geneIdx)] })
+      ]
+    });
+    tBody.appendChild(tr);
+  }
+
+  return createDataTable({ children: [tBody]});
+}
+
+function createLinkElement(value, linkContent) {
   const a = createElement("a", {
     textContent: value,
     classes: ["clickable"]
   });
   a.addEventListener("click", evt => {
     evt.preventDefault();
-    const table = createElement("table", { classes: ["datatable", "textselect"] });
-    const tBody = createElement("tbody");
-    for (const header of headerMap) {
-      const tr = createElement("tr", {
-        children: [
-          createElement("td", { children: [header.title] }),
-          createElement("td", { children: [header.data(geneData)] })
-        ]
-      });
-      tBody.appendChild(tr);
-    }
-    table.appendChild(tBody);
-    const dialog = createElement("dialog", { children: [table] });
-    dialog.addEventListener("close", () => dialog.remove());
-    document.getElementById("UI")?.appendChild(dialog);
-    dialog.showModal();
+    show(linkContent());
   });
   return a;
+}
+
+function show(content, onClose) {
+  const dialog = createElement("dialog", { children: [content] });
+  dialog.addEventListener("close", () => {
+    onClose?.call(content);
+    dialog.remove();
+  });
+  document.getElementById("UI")?.appendChild(dialog);
+  dialog.showModal();
 }
 
 function createUIdiv() {
@@ -253,10 +467,9 @@ function createUIdiv() {
 
 function createDetailButton() {
   if (!document.getElementById("detailBtn")) {
-    const button = createElement("button", {
+    const button = createButton({
       id: "detailBtn",
       textContent: "Detail",
-      classes: ["clickable"]
     });
     button.addEventListener("click", () => document.getElementById("pickedDetails")?.showModal());
     document.getElementById("mid-right")?.appendChild(button);
@@ -286,7 +499,19 @@ export function removeTooltip() {
 }
 window.addEventListener("resize", () => {
   removeTooltip();
-})
+});
+
+function createButton(options) {
+  return createElement("button", {
+    type: "button",
+    ...options,
+    classes: ["clickable", ...(options.classes ?? [])],
+  });
+}
+
+function createDataTable(options) {
+  return createElement("table", { ...options, classes: ["datatable", "textselect", ...(options.classes ?? [])] });
+}
 
 function createElement(tag, options={}) {
   const element = document.createElement(tag);

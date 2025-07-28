@@ -225,7 +225,7 @@ function familyDefault(key, familyKeyTypes) {
     if (gene === undefined) {
       return familyKeyTypes[keyType]?.default(family);
     } else {
-      return config.get(createFamilyKey(family, keyType));
+      return config.familyGet(family, keyType);
     }
   } else if (key === "shownFamilies") {
     return dataHandler.families;
