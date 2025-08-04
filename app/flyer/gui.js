@@ -14,11 +14,9 @@ export function setupGUI() {
         if (pickedCount === 0) {
           createDetailButton();
         }
-        appendDetailRow({ family, gene, type });
-        pickedCount++;
+        pickedCount += appendDetailRow({ family, gene, type });
       } else {
-        pickedCount--;
-        removeDetailRow({ family, gene, type });
+        pickedCount -= removeDetailRow({ family, gene, type });
         if (pickedCount === 0) {
           removeDetailButton();
         }
@@ -121,7 +119,11 @@ function appendDetailRow({ family, gene, type }) {
     }
     table.tBodies[0].appendChild(row);
     table.querySelector("#selectAll").checked = false;
+
+    return true;
   }
+
+  return false;
 }
 
 function switchToDetails(type) {
@@ -132,8 +134,16 @@ function switchToDetails(type) {
 
 function removeDetailRow({ family, gene, type }) {
   const row = document.getElementById(`${family}.${gene}.${type}`);
-  row?.querySelector(".row-selector").click();
-  row?.remove();
+  if (row !== null) {
+    row.querySelector(".row-selector").click();
+    const table = row.closest("table");
+    const elementIdx = table.TOX_elements.findIndex(element => (family === element.family) && (gene === element.gene));
+    table.TOX_elements.splice(elementIdx, 1);
+    row.remove();
+    return true;
+  }
+
+  return false;
 }
 
 function createPickedDetailsDialog() {
@@ -294,9 +304,7 @@ function createTableUI({ table, next, previous }, type) {
   function selectorHandler(target, callback) {
     if (target.id === "selectAll") {
       table.TOX_selectedRows.clear();
-        console.log(table.TOX_allSelectorState)
       table.TOX_allSelectorState = target.checked;
-        console.log(table.TOX_allSelectorState)
     } else {
       const row = target.closest("tr");
       if (target.classList.contains("row-selector")) {
