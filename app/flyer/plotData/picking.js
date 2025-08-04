@@ -101,20 +101,6 @@ function registerClickEvents(chunks) {
   });
 }
 
-function selectionMeshPick(selectionMesh, family, gene, type, instanceMatrix, dispatchEvent=true) {
-  if (instanceMatrix !== undefined) {
-    const instanceCount = selectionMesh.TOX_instanceCount;
-    createDynamicThinInstance( selectionMesh, family, gene, instanceMatrix );
-    if (instanceCount !== selectionMesh.TOX_instanceCount && dispatchEvent) {
-      document.dispatchEvent(new CustomEvent("pick", { detail: { family, gene, type } }));
-    }
-  } else {
-    if (removeDynamicThinInstance(selectionMesh, family, gene) && dispatchEvent) {
-      document.dispatchEvent(new CustomEvent("unpick", { detail: { family, gene, type } }));
-    }
-  }
-}
-
 function setupGenePicking(scene) {
   function pick({ family, gene, value }) {
     const { coordinates, is_outlier } = dataHandler.getGeneData(family, gene, [config.get("tissueX"), config.get("tissueY"), config.get("tissueZ")], ["is_outlier"]);
@@ -122,18 +108,17 @@ function setupGenePicking(scene) {
     if (value) {
       const diameter = (config.familyGet(family, "Diameter", gene)) + .001;
       const scale = config.get("scale");
-      selectionMeshPick(
+      createDynamicThinInstance(
         mesh,
         family,
         gene,
-        "Gene",
         getInstanceMatrix(
           Vector(...coordinates.map(v => v*scale)),
           Vector(diameter, diameter, diameter)
         )      
       );
     } else {
-      selectionMeshPick(mesh, family, gene, "Gene");
+      removeDynamicThinInstance(mesh, family, gene);
     }
   }
   config.onChange("PickedGene", pick, null);
@@ -169,18 +154,17 @@ function setupCentroidPicking(scene) {
       const { centroid } = dataHandler.getFamilyData(family, config.get("tissueX"), config.get("tissueY"), config.get("tissueZ"));
       const diameter = config.familyGet(family, "Diameter") * 4 + .001;
       const scale = config.get("scale");
-      selectionMeshPick(
+      createDynamicThinInstance(
         mesh,
         family,
         undefined,
-        "Centroid",
         getInstanceMatrix(
           Vector(...centroid.map(v => v*scale)),
           Vector(diameter, diameter, diameter)
         )      
       );
     } else {
-      selectionMeshPick(mesh, family, undefined, "Centroid");
+      removeDynamicThinInstance(mesh, family, undefined);
     }
   }
   config.onChange("PickedCentroid", pick, null);
@@ -211,11 +195,11 @@ function setupVectorPicking(scene) {
   function pick({ family, gene, value }) {
     if (value) {
       const matrices = createVectorPartsInstanceMatrices(family, gene, .001);
-      selectionMeshPick(scene.getMeshByName("pickedVectorShaft"), family, gene, "ShiftVector", matrices.shaft);
-      selectionMeshPick(scene.getMeshByName("pickedVectorHead"), family, gene, "ShiftVector", matrices.head, false);
+      createDynamicThinInstance(scene.getMeshByName("pickedVectorShaft"), family, gene, matrices.shaft);
+      createDynamicThinInstance(scene.getMeshByName("pickedVectorHead"), family, gene, matrices.head);
     } else {
-      selectionMeshPick(scene.getMeshByName("pickedVectorShaft"), family, gene, "ShiftVector");
-      selectionMeshPick(scene.getMeshByName("pickedVectorHead"), family, gene, "ShiftVector", undefined, false);
+      removeDynamicThinInstance(scene.getMeshByName("pickedVectorShaft"), family, gene);
+      removeDynamicThinInstance(scene.getMeshByName("pickedVectorHead"), family, gene);
     }
   }
   config.onChange("PickedShiftVector", pick, null);

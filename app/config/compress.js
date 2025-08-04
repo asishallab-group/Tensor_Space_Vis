@@ -514,6 +514,4 @@ function test() {
   }
 }
 
-// note that if you run tests, all previous encodings (e.g. in URLs) won't decode correctly,
-// as the separators differ then because the test function initializes some separators when calling getEncoder
 test()

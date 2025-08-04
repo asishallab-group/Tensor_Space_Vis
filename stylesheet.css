@@ -4,12 +4,25 @@ html, body {
   height: 100dvh;
   margin: 0;
   overflow: hidden;
+}
 
+html, body, button, .notextselect {
   /* Disable selection of anything, as everything happens 'inside' the canvas */
   -webkit-user-select: none; /* Safari */
   -ms-user-select: none; /* IE 10, 11 */
   user-select: none;
-  tab
+}
+
+.textselect {
+  -webkit-user-select: auto; /* Safari */
+  -ms-user-select: auto; /* IE 10, 11 */
+  user-select: auto;
+  pointer-events: auto;
+}
+
+.clickable:not([disabled]) {
+  pointer-events: auto;
+  cursor: pointer;
 }
 
 main {
@@ -36,15 +49,9 @@ main {
   font-size: 12px;
 }
 
-.textselect {
-  -webkit-user-select: auto; /* Safari */
-  -ms-user-select: auto; /* IE 10, 11 */
-  user-select: auto;
-  pointer-events: auto;
-}
-.clickable:not([disabled]) {
-  pointer-events: auto;
-  cursor: pointer;
+img.icon {
+  width: 5em;
+  height: 5em;
 }
 
 #UI {
@@ -52,8 +59,8 @@ main {
   top: 0;
   left: 0;
   z-index: 10; /* Higher than canvas */
-  width: 100vw;
-  height: 100vh;
+  width: 100dvw;
+  height: 100dvh;
   pointer-events: none; /* Allows UI interaction */
 
   display: grid;
@@ -76,6 +83,7 @@ main {
   grid-area: dialog;
   width: 60%;
   height: 60%;
+  pointer-events: auto;
 }
 
 #UI > #mid-right {
@@ -93,8 +101,8 @@ main {
   border-radius: 1pc;
   box-shadow: inherit;
   width: fit-content;
-  font-size: 3vh;
-  margin-right: 1vw;
+  font-size: 3dvh;
+  margin-right: 1dvw;
   font-weight: bold;
   padding: 1%;
 }
@@ -109,10 +117,6 @@ main {
   grid-area: top-right;
   display: flex;
   box-shadow: none;
-}
-
-#top-left > * {
-  height: 1%;
 }
 
 #pickedDetailsMenu {
