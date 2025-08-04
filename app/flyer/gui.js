@@ -30,7 +30,7 @@ export function setupGUI() {
 function addIcons() {
   const icons = {
     "top-left": [
-      { src: "/images/gear.png", alt: "Settings" },
+      { src: "./images/gear.png", alt: "Settings" },
     ]
   }
 
