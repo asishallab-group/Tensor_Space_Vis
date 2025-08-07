@@ -62,9 +62,6 @@ export function createInputForHeaderData(key, type) {
 }
 
 export function applyChanges(ancestor) {
-  if (ancestor instanceof Event) {
-    ancestor = ancestor.target;
-  }
   for (const input of ancestor.querySelectorAll("input[key]")) {
     const tr = input.closest("tr");
     const family = getNumericAttribute(tr, "tox-family");

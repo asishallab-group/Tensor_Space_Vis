@@ -294,21 +294,15 @@ export function createSingleDetailsTable(geneData, familyIdx, geneIdx, headerMap
   };
 }
 
-function concatFunctions(...functions) {
-  functions = functions.filter(f => typeof f === "function");
-  if (functions.length === 1) {
-    return functions[0];
-  } else {
-    return function(...args) {
-      for (const func of functions) {
-        func(...args);
-      }
-    }
-  }
-}
-
 export function createTableUI({ table, next, previous }, { bottomChildren, afterRowSelection, beforePageSwitch }) {
-  table.addEventListener("change", concatFunctions(selectorHandler, afterRowSelection));
+  if (typeof afterRowSelection === "function") {
+    table.addEventListener("change", evt => {
+      selectorHandler(evt);
+      afterRowSelection(table, evt);
+    });
+  } else {
+    table.addEventListener("change", selectorHandler);
+  }
 
   bottomChildren ??= [];
 
@@ -320,13 +314,24 @@ export function createTableUI({ table, next, previous }, { bottomChildren, after
     const nextBtn = createButton({
       innerHTML: "&#8594;", // right arrow
     });
-    nextBtn.addEventListener("click", concatFunctions(beforePageSwitch, next));
-    bottomChildren.push(nextBtn);
-
     const previousBtn = createButton({
       innerHTML: "&#8592;", // left arrow
     });
-    previousBtn.addEventListener("click", concatFunctions(beforePageSwitch, previous));
+
+    if (typeof beforePageSwitch === "function") {
+      nextBtn.addEventListener("click", evt => {
+        beforePageSwitch(table, evt);
+        next(evt);
+      });
+      previousBtn.addEventListener("click", evt => {
+        beforePageSwitch(table, evt);
+        previous(evt);
+      });
+    } else {
+      nextBtn.addEventListener("click", next);
+      previousBtn.addEventListener("click", previous);
+    }
+    bottomChildren.push(nextBtn);
     bottomChildren.unshift(previousBtn);
   }
 
