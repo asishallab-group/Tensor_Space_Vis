@@ -6,7 +6,7 @@ import {
   dynamicThinInstanceBufferUpdated,
   createVectorPartsInstanceMatrices
 } from "./dynamicMeshes.js";
-import { createTooltip, removeTooltip } from "../gui.js";
+import { createTooltip, removeTooltip } from "../gui/dom.js";
 import {
   Vector,
   decomposeMatrix,
