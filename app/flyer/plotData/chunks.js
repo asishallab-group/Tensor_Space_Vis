@@ -24,7 +24,7 @@ export function getChunks(scene) {
       this.diameter = config.get("chunkDiameter");
       this.loadRange = config.get("chunkLoadRange");
       this.tissues = [config.get("tissueX"), config.get("tissueY"), config.get("tissueZ")]
-      this.families = config.get("shownFamilies");
+      this.families = dataHandler.families.filter(f => config.familyGet(f, "Visible"));
       
       const position = this.scene.activeCamera.position.asArray();
       this.currentChunkCentroid = getChunkCentroid(position, this.diameter);
@@ -199,8 +199,8 @@ export function getChunks(scene) {
     scene.fogStart = 0.5 * chunks.diameter;
   }
 
-  const needsRecalculation = ["tissueX", "tissueY", "tissueZ", "scale", "shownFamilies"];
-  const needsReload = ["shownFamilies", "Centroid", "Diameter", "Color", "darkMode"];
+  const needsRecalculation = ["tissueX", "tissueY", "tissueZ", "scale", "Visible"];
+  const needsReload = ["Visible", "Centroid", "Diameter", "Color", "darkMode"];
   const needsRecalculationAndSetsFog = ["chunkDiameter", "chunkLoadRange"];
 
   for (const setting of needsRecalculationAndSetsFog) {

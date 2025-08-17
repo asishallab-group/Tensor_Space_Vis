@@ -1,6 +1,6 @@
 "use strict";
 
-import { createFamilyKey, splitFamilyKey, getValidator } from "./config/validation.js";
+import { createFamilyKey, splitFamilyKey, getValidator, familyKeyTypes } from "./config/validation.js";
 
 const DEFAULTS = {
   allModes: {
@@ -17,7 +17,6 @@ const DEFAULTS = {
     scale: 100,
     chunkDiameter: 50,
     chunkLoadRange: 2,
-    shownFamilies: null,
     tissueX: "Liver",
     tissueY: "Heart",
     tissueZ: "Lung",
@@ -49,17 +48,6 @@ export async function setupConfig() {
     lightMode: {},
     darkMode: {}
   };
-
-  const familyKeyTypes = {
-    ShiftVector: { type: "boolean", default: () => false, supportsGeneRelated: true },
-    Centroid: { type: "boolean", default: () => false, supportsFamilyRelated: true },
-    Hull: { type: "boolean", default: () => false, supportsFamilyRelated: true },
-    Color: { type: "string", default: (family) => dataHandler.getColor(family), supportsGeneRelated: true, supportsFamilyRelated: true },
-    Diameter: { type: "number", default: () => 0.25, supportsGeneRelated: true },
-    PickedGene: { type: "boolean", default: () => false, supportsGeneRelated: true },
-    PickedShiftVector: { type: "boolean", default: () => false, supportsGeneRelated: true },
-    PickedCentroid: { type: "boolean", default: () => false, supportsFamilyRelated: true },
-  };
   
   const callbacks = {};
   const updated = new Map();
@@ -78,7 +66,7 @@ export async function setupConfig() {
     }
   }
 
-  const validate = getValidator(familyKeyTypes);
+  const validate = getValidator();
 
   const config = {
     get(key) {
@@ -194,6 +182,10 @@ export async function setupConfig() {
       values.allModes = importingConfig.allModes;
       values.lightMode = importingConfig.lightMode;
       values.darkMode = importingConfig.darkMode;
+    } else {
+      for (let family of dataHandler.families) {
+        config.familySet(family, "Visible", true);
+      }
     }
   } catch (err) {
     console.error("Could not import config from URL", err);
@@ -213,7 +205,7 @@ export async function setupConfig() {
     }
   }, 1);
 
-  config.onChange("darkMode", config.update.bind(config));
+  config.onChange("darkMode", () => config.update());
 
   return config;
 }
@@ -227,8 +219,6 @@ function familyDefault(key, familyKeyTypes) {
     } else {
       return config.familyGet(family, keyType);
     }
-  } else if (key === "shownFamilies") {
-    return dataHandler.families;
   }
 }
 

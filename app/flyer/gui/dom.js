@@ -129,96 +129,24 @@ export function getNumericAttribute(htmlElement, attribute) {
 export function createMasterTable({ elements, familyOnly, parentTable }, getData, headerMap, bodyOnly=false) {
   const tbody = createElement("tbody");
 
-  if ((parentTable !== undefined) && (elements !== undefined)) {
-    elements = elements.filter(({ family, gene }) => parentTable.TOX_isSelected(family, gene));
-  }
-
-  function generateRows(elements, firstFamily, firstGene, { lastBefore, firstAfter }) {
-    if (elements === undefined) {
-      elements = [];
-
-      if (firstAfter !== undefined) {
-        const familyCount = dataHandler.getFamilyCount();
-        if (firstGene === undefined) {
-          for (let family = firstFamily; (family < familyCount) && (elements.length < firstAfter); family++) {
-            elements.push({ family });
-          }
-        } else {
-          let geneCount = dataHandler.getGeneCount(firstFamily);
-          while ((elements.length < firstAfter) && (firstFamily < familyCount)) {
-            if (firstGene < geneCount) {
-              elements.push({ family: firstFamily, gene: firstGene });
-              firstGene++;
-            } else {
-              firstFamily++;
-              firstGene = 0;
-              geneCount = dataHandler.getGeneCount(firstFamily);
-            }
-          }
-        }
-      } else {
-        if (firstGene === undefined) {
-          for (let family = firstFamily - 1; (family >= 0) && (elements.length < lastBefore); family--) {
-            elements.push({ family });
-          }
-        } else {
-          while (elements.length < lastBefore) {
-            firstGene--;
-            if (firstGene >= 0) {
-              elements.push({ family: firstFamily, gene: firstGene });
-            } else {
-              firstFamily--;
-              if (firstFamily === -1) break;
-              firstGene = dataHandler.getGeneCount(firstFamily);
-            }
-          }
-        }
-      }
-    } else {
-      const lastElement = elements.findIndex(({ family, gene }) => ((family == firstFamily) && (gene == firstGene)));
-      if (firstAfter !== undefined) {
-        elements = elements.slice(lastElement + 1, lastElement + paginationStep + 1 );
-      } else {
-        if (lastElement > -1) {
-          elements = elements.slice(lastElement - paginationStep, lastElement);
-        } else {
-          return;
-        }
-      }
-    }
-
-    if (elements.length > 0) {
-      tbody.innerText = "";
-      for (const { family, gene } of elements) {
-        const row = createElement("tr", { "tox-family": family, "tox-gene": gene });
-        const rowSelector = createRowSelector(false, family, gene, "Gene");
-        const table = tbody.closest("table");
-        if (table !== null) {
-          if (table.TOX_isSelected(family, gene)) {
-            rowSelector.querySelector(".row-selector").checked = true;
-            row.classList.add("selected");
-          }
-        }
-        row.appendChild(rowSelector);
-
-        const data = getData(family, gene);
-        for (const cell of headerMap) {
-          const td = createElement("td", {
-            children: [cell.data(data, family, gene)]
-          });
-          row.appendChild(td);
-        }
-
-        tbody.appendChild(row);
-      }
+  if (parentTable !== undefined) {
+    if (elements !== undefined) {
+      elements = elements.filter(({ family, gene }) => parentTable.TOX_isSelected(family, gene));
+    } else if (!parentTable.TOX_allSelectorState) {
+      elements = [...parentTable.TOX_selectedRows].sort().map(id => {
+        let [family, gene] = id.split("_");
+        family = Number(family);
+        gene = gene === "undefined" ? undefined : Number(gene);
+        return { family, gene }
+      });
     }
   }
 
   const paginationStep = 10;
   if (familyOnly) {
-    generateRows(elements, -1, undefined, { firstAfter: paginationStep });
+    generateMasterTableRows(tbody, elements, -1, undefined, getData, headerMap, { firstAfter: paginationStep }, parentTable);
   } else {
-    generateRows(elements, -1, -1, { firstAfter: paginationStep });
+    generateMasterTableRows(tbody, elements, -1, -1, getData, headerMap, { firstAfter: paginationStep }, parentTable);
   }
 
   if (bodyOnly) {
@@ -250,12 +178,12 @@ export function createMasterTable({ elements, familyOnly, parentTable }, getData
         const lastFamily = getNumericAttribute(tbody.lastChild, "tox-family");
         if (familyOnly) {
           if (lastFamily < dataHandler.getFamilyCount()) {
-            generateRows(elements, lastFamily, undefined, { firstAfter: paginationStep });
+            generateMasterTableRows(tbody, elements, lastFamily, undefined, getData, headerMap, { firstAfter: paginationStep }, parentTable);
           }
         } else {
           const lastGene = getNumericAttribute(tbody.lastChild, "tox-gene");
           if (lastGene + 1 < dataHandler.getGeneCount(lastFamily) || lastFamily + 1 < dataHandler.getFamilyCount()) {
-            generateRows(elements, lastFamily, lastGene, { firstAfter: paginationStep });
+            generateMasterTableRows(tbody, elements, lastFamily, lastGene, getData, headerMap, { firstAfter: paginationStep }, parentTable);
           }
         }
       },
@@ -263,12 +191,12 @@ export function createMasterTable({ elements, familyOnly, parentTable }, getData
         const firstFamily = getNumericAttribute(tbody.firstChild, "tox-family");
         if (familyOnly) {
           if (firstFamily > 0) {
-            generateRows(elements, firstFamily, undefined, { lastBefore: paginationStep });
+            generateMasterTableRows(tbody, elements, firstFamily, undefined, getData, headerMap, { lastBefore: paginationStep }, parentTable);
           }
         } else {
           const firstGene = getNumericAttribute(tbody.firstChild, "tox-gene");
           if (firstGene > 0 || firstFamily > 0) {
-            generateRows(elements, firstFamily, firstGene, { lastBefore: paginationStep });
+            generateMasterTableRows(tbody, elements, firstFamily, firstGene, getData, headerMap, { lastBefore: paginationStep }, parentTable);
           }
         }
       }
@@ -277,10 +205,102 @@ export function createMasterTable({ elements, familyOnly, parentTable }, getData
   }
 }
 
+function generateMasterTableRows(tbody, elements, familyCursor, geneCursor, getData, headerMap, { lastBefore, firstAfter }, parentTable) {
+  if (elements === undefined) {
+    elements = [];
+
+    if (firstAfter !== undefined) {
+      const familyCount = dataHandler.getFamilyCount();
+      if (geneCursor === undefined) {
+        for (let family = familyCursor + 1; (family < familyCount) && (elements.length < firstAfter); family++) {
+          if (parentTable === undefined || parentTable.TOX_isSelected(family)) {
+            elements.push({ family });
+          }
+        }
+      } else {
+        let geneCount = dataHandler.getGeneCount(familyCursor);
+        geneCursor++;
+        while ((elements.length < firstAfter) && (familyCursor < familyCount)) {
+          if (geneCursor < geneCount) {
+            if (parentTable === undefined || parentTable.TOX_isSelected(familyCursor, geneCursor)) {
+              elements.push({ family: familyCursor, gene: geneCursor });
+            }
+            geneCursor++;
+          } else {
+            familyCursor++;
+            geneCursor = 0;
+            geneCount = dataHandler.getGeneCount(familyCursor);
+          }
+        }
+      }
+    } else {
+      if (geneCursor === undefined) {
+        for (let family = familyCursor - 1; (family >= 0) && (elements.length < lastBefore); family--) {
+          if (parentTable === undefined || parentTable.TOX_isSelected(family)) {
+            elements.unshift({ family });
+          }
+        }
+      } else {
+        while (elements.length < lastBefore) {
+          geneCursor--;
+          if (geneCursor >= 0) {
+            if (parentTable === undefined || parentTable.TOX_isSelected(familyCursor, geneCursor)) {
+              elements.unshift({ family: familyCursor, gene: geneCursor });
+            }
+          } else {
+            familyCursor--;
+            if (familyCursor === -1) break;
+            geneCursor = dataHandler.getGeneCount(familyCursor);
+          }
+        }
+      }
+    }
+  } else {
+    const lastElement = elements.findIndex(({ family, gene }) => ((family == familyCursor) && (gene == geneCursor)));
+    if (firstAfter !== undefined) {
+      elements = elements.slice(lastElement + 1, lastElement + firstAfter + 1 );
+    } else {
+      if (lastElement > -1) {
+        elements = elements.slice(lastElement - lastBefore, lastElement);
+      } else {
+        return;
+      }
+    }
+  }
+
+  if (elements.length > 0) {
+    tbody.innerText = "";
+    for (const { family, gene } of elements) {
+      const row = createElement("tr", { "tox-family": family, "tox-gene": gene });
+      const rowSelector = createRowSelector(false, family, gene, "Gene");
+      const table = tbody.closest("table");
+      if (table !== null) {
+        if (table.TOX_isSelected(family, gene)) {
+          rowSelector.querySelector(".row-selector").checked = true;
+          row.classList.add("selected");
+        }
+      }
+      row.appendChild(rowSelector);
+
+      const data = getData(family, gene);
+      for (const cell of headerMap) {
+        const td = createElement("td", {
+          children: [cell.data(data, family, gene)]
+        });
+        row.appendChild(td);
+      }
+
+      tbody.appendChild(row);
+    }
+  }
+}
+
 export function createSingleDetailsTable(geneData, familyIdx, geneIdx, headerMap) {
   const tBody = createElement("tbody");
   for (const header of headerMap) {
     const tr = createElement("tr", {
+      "tox-family": familyIdx,
+      "tox-gene": geneIdx,
       children: [
         createElement("td", { children: [header.title] }),
         createElement("td", { children: [header.data(geneData, familyIdx, geneIdx)] })

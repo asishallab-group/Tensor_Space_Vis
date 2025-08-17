@@ -59,6 +59,10 @@ export const handler = {
       stdDevs: []
     };
 
+    if (tissues.length === 0) {
+      tissues = this.tissues;
+    }
+
     for (const tissue of tissues) {
       familyData.centroid.push(data[familyIdx]?.centroid[tissue]);
       const tissueData = data[familyIdx]?.tissues[tissue];

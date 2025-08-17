@@ -8,7 +8,7 @@ import {
 import {
   appendDetailRow,
   removeDetailRow
-} from "./details.js";
+} from "./details/picked.js";
 
 export function createOverlay() {
   createUIdiv();
@@ -24,7 +24,7 @@ function createUIdiv() {
 
     document.getElementById("UI")?.remove();
     const UI = createElement("div", { id: "UI" });
-    for (const area of ["top-left", "top-right", "mid-right"]) {
+    for (const area of ["top-left", "top-mid", "top-right", "mid-right"]) {
       const element = createElement("aside", { id: area });
       UI.appendChild(element);
     }
@@ -71,18 +71,29 @@ function removeDetailButton() {
 function addIcons() {
   const icons = {
     "top-left": [
-      { src: "./images/gear.png", alt: "Settings" },
+      { src: "./images/gear.png", alt: "Settings"},
+    ],
+    "top-mid": [
+      { src: "./images/loupe.png", alt: "Settings", onclick() {showModal(document.getElementById("globalView"))} },
     ]
   }
 
   for (const [area, areaIcons] of Object.entries(icons)) {
     const areaElement = document.getElementById(area);
     for (const icon of areaIcons) {
-      areaElement?.appendChild(createElement("img", {
-        height: 1,
-        classes: ["icon"],
-        ...icon
-      }));
+      const { onclick, ...rest } = icon;
+      const iconElement = createElement("div", {
+        children: [createElement("img", {
+          height: 1,
+          classes: ["icon"],
+          ...rest
+        })]
+      });
+      if (typeof onclick === "function") {
+        iconElement.addEventListener("click", onclick);
+        iconElement.classList.add("clickable");
+      }
+      areaElement?.appendChild(iconElement);
     }
   }
 }

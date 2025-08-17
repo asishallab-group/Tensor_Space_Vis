@@ -52,6 +52,9 @@ main {
 img.icon {
   width: 5em;
   height: 5em;
+  pointer-events: none;
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: 1pc;
 }
 
 #UI {
@@ -65,11 +68,11 @@ img.icon {
 
   display: grid;
   grid-template-areas:
-    "top-left top-left .      top-right top-right"
-    ".        .        .      .         mid-right"
-    ".        .        .      .         mid-right"
-    ".        .        .      .         mid-right"
-    ".        .        .      .         .        ";
+    "top-left top-left top-mid top-right top-right"
+    ".        .        .       .         mid-right"
+    ".        .        .       .         mid-right"
+    ".        .        .       .         mid-right"
+    ".        .        .       .         .        ";
   gap: 1rem;
   padding: 1rem;
 }
@@ -117,9 +120,18 @@ img.icon {
   grid-area: top-right;
   display: flex;
   box-shadow: none;
+  justify-content: right;
 }
 
-#pickedDetailsMenu {
+#UI > #top-mid {
+  background: rgba(0, 0, 0, 0);
+  grid-area: top-mid;
+  display: flex;
+  box-shadow: none;
+  justify-content: center;
+}
+
+menu.tabs {
   display: flex;
   justify-content: center;
   list-style: none;
@@ -127,11 +139,11 @@ img.icon {
   margin: 0;
 }
 
-#pickedDetailsMenu li {
+menu.tabs li {
   margin-right: 20px;
 }
 
-#pickedDetailsMenu li:last-child {
+menu.tabs li:last-child {
   margin-right: 0;
 }
 

@@ -3,6 +3,19 @@
 const FAMILY_KEY_REGEX = /^(\d+)_(\D+)(:\d+)?$/;
 export const COLOR_REGEX = /^#[A-Fa-f0-9]{6}(?:[A-Fa-f0-9]{2})?$/;
 
+export const familyKeyTypes = {
+  ShiftVector: { type: "boolean", default: () => false, supportsGeneRelated: true },
+  Centroid: { type: "boolean", default: () => false, supportsFamilyRelated: true },
+  Hull: { type: "boolean", default: () => false, supportsFamilyRelated: true },
+  Color: { type: "string", default: (family) => dataHandler.getColor(family), supportsGeneRelated: true, supportsFamilyRelated: true },
+  Diameter: { type: "number", default: () => 0.25, supportsGeneRelated: true },
+  PickedGene: { type: "boolean", default: () => false, supportsGeneRelated: true },
+  PickedShiftVector: { type: "boolean", default: () => false, supportsGeneRelated: true },
+  PickedCentroid: { type: "boolean", default: () => false, supportsFamilyRelated: true },
+  Visible: { type: "boolean", default: () => false, supportsFamilyRelated: true }
+}
+Object.freeze(familyKeyTypes);
+
 export function createFamilyKey(family, key, gene) {
   if (gene === undefined) {
     return `${family}_${key}`;
@@ -28,7 +41,7 @@ export function getValidator() {
   {
     const asArray = [
       [
-        ["orbitMode", "darkMode", "ShiftVector", "Centroid", "Hull", "PickedGene", "PickedShiftVector", "PickedCentroid"],
+        ["orbitMode", "darkMode", "ShiftVector", "Centroid", "Hull", "PickedGene", "PickedShiftVector", "PickedCentroid", "Visible"],
         v => {
           if (typeof v !== "boolean") throw new Error(`Expecting boolean value, got: ${typeof v}`);
         }
@@ -55,12 +68,6 @@ export function getValidator() {
         ["chunkLoadRange"],
         v => {
           if (!Number.isInteger(v) || v <= 0) throw new Error(`Expecting true positive integer, got: ${v} (${typeof v})`);
-        }
-      ],
-      [
-        ["shownFamilies"],
-        v => {
-          if (v !== null && !(v instanceof Array)) throw new Error(`Expecting either null or Array of family names, got: ${typeof v}`);
         }
       ],
       [["tissueX", "tissueY", "tissueZ"], () => {}],

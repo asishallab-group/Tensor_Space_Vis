@@ -7,20 +7,20 @@ import {
   createToggle
 } from "./dom.js";
 
-export function createCustomizationTable(table) {
-  function dataFunc(key) {
-    return function (geneData, familyIdx, geneIdx) {
-      return createElement("span", { classes: [key], innerText: config.familyGet(familyIdx, key, geneIdx)});
-    }
+export function createCustomizationTable(table, type) {
+  switch (type) {
+    case "Gene": return createGeneCustomizationTable(table);
+    case "Family": return createFamilyCustomizationTable(table);
+    default: return createElement("table");
   }
+}
 
+function createGeneCustomizationTable(table) {
   const headers = [
     { title: "Gene", data(geneData) {return geneData.genes} },
     { title: "Family", data(geneData) {return geneData.family} },
     { title: "Type", data(geneData) {return geneData.is_outlier ? "Outlier" : "Inlier"} },
     { title: "Shift Vector", data: createInputForHeaderData("ShiftVector", "boolean") },
-    // { title: "Centroid", data: dataFunc("Centroid")},
-    // { title: "Hull", data: dataFunc("Hull")},
     { title: "Color", data: createInputForHeaderData("Color", "color")},
     { title: "Diameter", data: createInputForHeaderData("Diameter", "number")},
   ];
@@ -32,6 +32,26 @@ export function createCustomizationTable(table) {
       parentTable: table
     },
     (family, gene) => dataHandler.getGeneData(family, gene),
+    headers
+  );
+}
+
+function createFamilyCustomizationTable(table) {
+  const headers = [
+    { title: "Family", data(geneData) {return geneData.family} },
+    { title: "Type", data(geneData) {return geneData.is_outlier ? "Outlier" : "Inlier"} },
+    { title: "Centroid", data: createInputForHeaderData("Centroid", "boolean")},
+    { title: "Hull", data: createInputForHeaderData("Hull", "boolean")},
+    { title: "Default Color", data: createInputForHeaderData("Color", "color")},
+  ];
+
+  return createMasterTable(
+    {
+      elements: table.TOX_elements,
+      familyOnly: table.TOX_familyOnly,
+      parentTable: table
+    },
+    family => dataHandler.getFamilyData(family),
     headers
   );
 }

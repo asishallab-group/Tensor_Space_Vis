@@ -102,32 +102,42 @@ export function setupFamilyHullMesh(scene) {
 
   {
     function create({ family, gene, value }) {
-      if (value) {
-        const scale = config.get("scale");
-        const familyData = dataHandler.getFamilyData(family, config.get("tissueX"), config.get("tissueY"), config.get("tissueZ"));
-        const centroid = Vector(...familyData.centroid.map(v => v*scale));
-        const stdDevs = familyData.stdDevs.map(v => v*scale);
-        const color = Color(config.familyGet(family, "Color")).scale(2);
-        color.a /= 2;
+      if (config.familyGet(family, "Visible")) {
+        if (value) {
+          const scale = config.get("scale");
+          const familyData = dataHandler.getFamilyData(family, config.get("tissueX"), config.get("tissueY"), config.get("tissueZ"));
+          const centroid = Vector(...familyData.centroid.map(v => v*scale));
+          const stdDevs = familyData.stdDevs.map(v => v*scale);
+          const color = Color(config.familyGet(family, "Color")).scale(2);
+          color.a /= 2;
 
-        const instanceMatrix = getInstanceMatrix(
-          centroid,
-          Vector(stdDevs[0] * 3, stdDevs[1] * 2, stdDevs[2] * 3)
-        );
+          const instanceMatrix = getInstanceMatrix(
+            centroid,
+            Vector(stdDevs[0] * 3, stdDevs[1] * 2, stdDevs[2] * 3)
+          );
 
-        createDynamicThinInstance(hull, family, undefined, instanceMatrix, color);
-      } else {
-        removeDynamicThinInstance(hull, family);
+          createDynamicThinInstance(hull, family, undefined, instanceMatrix, color);
+        } else {
+          removeDynamicThinInstance(hull, family);
+        }
       }
     }
 
-    config.onChange("Hull", create, null);
+    config.onChange("Hull", evt => { if (config.familyGet(evt.family, "Visible")) create(evt); }, null);
+
+    function changeVisibility({ family, value }) {
+      if (config.familyGet(family, "Hull")) {
+        create({ family, value});
+      }
+    }
+    config.onChange("Visible", changeVisibility, null);
   }
 
   function update() {
     dynamicThinInstanceBufferUpdated(hull);
   }
   config.onChange("Hull", update);
+  config.onChange("Visible", update);
 
   function recreate() {
     hull.TOX_instanceCount = 0;
@@ -195,7 +205,16 @@ export function setupShiftVectorMesh(scene) {
       }
     };
 
-    config.onChange("ShiftVector", create, null);
+    config.onChange("ShiftVector", evt => { if (config.familyGet(evt.family, "Visible")) create(evt); }, null);
+
+    function changeVisibility({ family, value }) {
+      for (const gene of dataHandler.genes(family)) {
+        if (config.familyGet(family, "ShiftVector", gene)) {
+          create({ family, gene, value});
+        }
+      }
+    }
+    config.onChange("Visible", changeVisibility, null);
   }
 
   function update() {
@@ -203,17 +222,20 @@ export function setupShiftVectorMesh(scene) {
     dynamicThinInstanceBufferUpdated(shiftVectorShaft);
   }
   config.onChange("ShiftVector", update);
+  config.onChange("Visible", update);
 
-  function recreate() {
-    shiftVectorHead.TOX_instanceCount = 0;
-    shiftVectorShaft.TOX_instanceCount = 0;
-    for (const { family, geneIndex } of shiftVectorHead.TOX_metadata) {
-      config.familySet(family, "ShiftVector", true, geneIndex, false);
+  {
+    function recreate() {
+      shiftVectorHead.TOX_instanceCount = 0;
+      shiftVectorShaft.TOX_instanceCount = 0;
+      for (const { family, geneIndex } of shiftVectorHead.TOX_metadata) {
+        config.familySet(family, "ShiftVector", true, geneIndex, false);
+      }
     }
-  }
-  for (const setting of ["tissueX", "tissueY", "tissueZ", "scale", "Diameter", "Color", "darkMode"]) {
-    config.onChange(setting, recreate, 1);
-    config.onChange(setting, update);
+    for (const setting of ["tissueX", "tissueY", "tissueZ", "scale", "Diameter", "Color", "darkMode"]) {
+      config.onChange(setting, recreate, 1);
+      config.onChange(setting, update);
+    }
   }
 }
 
