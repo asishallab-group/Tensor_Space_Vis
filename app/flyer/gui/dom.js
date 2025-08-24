@@ -4,7 +4,7 @@ export function createButton(options) {
   return createElement("button", {
     type: "button",
     ...options,
-    classes: ["clickable", ...(options.classes ?? [])],
+    classes: ["clickable", "lifted", ...(options.classes ?? [])],
   });
 }
 
@@ -83,7 +83,7 @@ window.addEventListener("resize", () => {
   removeTooltip();
 });
 
-export function createRowSelector(selectAll, family, gene, type) {
+export function addRowSelector(row, selectAll, family, gene, type) {
   const checkbox = createElement("input", { type: "checkbox", classes: ["clickable"] });
   if (selectAll) {
     checkbox.id = "selectAll";
@@ -91,6 +91,7 @@ export function createRowSelector(selectAll, family, gene, type) {
   } else {
     checkbox.classList.add("row-selector");
     checkbox.addEventListener("change", rowSelectorListener);
+    row.addEventListener("dblclick", () => checkbox.click());
   }
   const element = createElement(selectAll ? "th": "td", {
     children: [checkbox],
@@ -103,6 +104,7 @@ export function createRowSelector(selectAll, family, gene, type) {
     }
   });
 
+  row.insertBefore(element, row.firstChild);
   return element;
 }
 
@@ -142,7 +144,7 @@ export function createMasterTable({ elements, familyOnly, parentTable }, getData
     }
   }
 
-  const paginationStep = 10;
+  const paginationStep = 6;
   if (familyOnly) {
     generateMasterTableRows(tbody, elements, -1, undefined, getData, headerMap, { firstAfter: paginationStep }, parentTable);
   } else {
@@ -153,9 +155,9 @@ export function createMasterTable({ elements, familyOnly, parentTable }, getData
     return tbody;
   } else {
     const headerCells = headerMap.map(({ title }) => createElement("th", { children: [title] }))
-    const thead = createElement("thead", {
-      children: [createElement("tr", { children: [createRowSelector(true), ...headerCells] })]
-    });
+    const headerRow = createElement("tr", { children: headerCells });
+    addRowSelector(headerRow, true)
+    const thead = createElement("thead", { children: [headerRow] });
 
     const table = createDataTable({ children: [thead, tbody]});
     table.TOX_elements = elements;
@@ -171,6 +173,7 @@ export function createMasterTable({ elements, familyOnly, parentTable }, getData
     table.TOX_isSelected = function (family, gene) {
       return this.TOX_allSelectorState !== this.TOX_selectedRows.has(this.TOX_rowID(family, gene));
     }
+    table.TOX_paginationStep = paginationStep;
 
     const result = {
       table,
@@ -272,7 +275,7 @@ function generateMasterTableRows(tbody, elements, familyCursor, geneCursor, getD
     tbody.innerText = "";
     for (const { family, gene } of elements) {
       const row = createElement("tr", { "tox-family": family, "tox-gene": gene });
-      const rowSelector = createRowSelector(false, family, gene, "Gene");
+      const rowSelector = addRowSelector(row, false, family, gene, "Gene");
       const table = tbody.closest("table");
       if (table !== null) {
         if (table.TOX_isSelected(family, gene)) {
@@ -296,6 +299,14 @@ function generateMasterTableRows(tbody, elements, familyCursor, geneCursor, getD
 }
 
 export function createSingleDetailsTable(geneData, familyIdx, geneIdx, headerMap) {
+  const header = createElement("tr", {
+    children: [
+      createElement("th", { innerText: "Attribute" }),
+      createElement("th", { innerText: "Value" })
+    ]
+  });
+  const tHead = createElement("thead", { children: [header] });
+
   const tBody = createElement("tbody");
   for (const header of headerMap) {
     const tr = createElement("tr", {
@@ -310,7 +321,7 @@ export function createSingleDetailsTable(geneData, familyIdx, geneIdx, headerMap
   }
 
   return {
-    table: createDataTable({ children: [tBody]})
+    table: createDataTable({ children: [tHead, tBody]})
   };
 }
 

@@ -8,7 +8,7 @@ import {
 } from "./tables.js";
 import {
   createMasterTable,
-  createRowSelector,
+  addRowSelector,
   createElement,
   createTableUI
 } from "../dom.js";
@@ -24,14 +24,14 @@ export function createPickedDetailsDialog() {
       const multiViewArg = {};
 
       for (const [pickType, headers] of Object.entries(tableHeaders)) {
-        const { table } = createMasterTable({ elements: [] }, null, headers);
-        table.id = pickType + "DetailsTable";
+        const tableComponents = createMasterTable({ elements: [] }, (family, gene) => dataHandler.getGeneData(family, gene), headers);
+        tableComponents.table.id = pickType + "DetailsTable";
 
         let tableUI;
         if (pickType === "Gene") {
-          tableUI = createTableUIWithCustomizationButton({ table }, "Gene");
+          tableUI = createTableUIWithCustomizationButton(tableComponents, "Gene");
         } else {
-          tableUI = createTableUI({ table }, { beforePageSwitch: applyChanges });
+          tableUI = createTableUI(tableComponents, { beforePageSwitch: applyChanges });
         }
 
         multiViewArg[menuNames[pickType]] = tableUI;
@@ -56,19 +56,22 @@ export function appendDetailRow({ family, gene, type }) {
     }
     const table = document.getElementById(type + "DetailsTable");
     table.TOX_elements.push({ family, gene });
-    const row = createElement("tr", { id, "tox-family": family, "tox-gene": gene });
-    row.appendChild(createRowSelector(false, family, gene, type));
 
-    const dataMap = getDetailsTableDataMap(type);
-    for (const cell of dataMap[type]) {
-      const td = createElement("td", {
-        children: [cell.data(data, family, gene)]
-      });
-      row.appendChild(td);
+    const tbody = table.tBodies[0];
+    if (table.TOX_paginationStep > tbody.childElementCount) {
+      const row = createElement("tr", { id, "tox-family": family, "tox-gene": gene });
+      addRowSelector(row, false, family, gene, type);
+
+      const dataMap = getDetailsTableDataMap(type);
+      for (const cell of dataMap[type]) {
+        const td = createElement("td", {
+          children: [cell.data(data, family, gene)]
+        });
+        row.appendChild(td);
+      }
+      tbody.appendChild(row);
+      table.querySelector("#selectAll").checked = false;
     }
-    table.tBodies[0].appendChild(row);
-    table.querySelector("#selectAll").checked = false;
-
     return true;
   }
 

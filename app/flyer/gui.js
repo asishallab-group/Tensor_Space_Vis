@@ -61,4 +61,6 @@ function setupConfigCallbacks() {
       }
     }, null);
   }
+
+  config.onChange("darkMode", ({ value }) => document.body.classList.toggle("darkmode", value));
 }

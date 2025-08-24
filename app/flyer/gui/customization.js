@@ -86,19 +86,23 @@ export function applyChanges(ancestor) {
     const tr = input.closest("tr");
     const family = getNumericAttribute(tr, "tox-family");
     const gene = getNumericAttribute(tr, "tox-gene");
-    switch (input.type) {
-      case "number": {
-        config.familySet(family, input.getAttribute("key"), Number(input.value), gene, false);
-        break;
+    try {
+      switch (input.type) {
+        case "number": {
+          config.familySet(family, input.getAttribute("key"), Number(input.value), gene, false);
+          break;
+        }
+        case "checkbox": {
+          config.familySet(family, input.getAttribute("key"), input.checked, gene, false);
+          break;
+        }
+        default: {
+          config.familySet(family, input.getAttribute("key"), input.value, gene, false);
+          break;
+        }
       }
-      case "checkbox": {
-        config.familySet(family, input.getAttribute("key"), input.checked, gene, false);
-        break;
-      }
-      default: {
-        config.familySet(family, input.getAttribute("key"), input.value, gene, false);
-        break;
-      }
+    } catch (err) {
+      console.error(err.message);
     }
   }
 }

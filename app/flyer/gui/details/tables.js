@@ -25,7 +25,16 @@ export function createTableUIWithCustomizationButton(tableComponents, type) {
     disabled: true,
   });
   button.addEventListener("click", function () {
-    show(createTableUI(createCustomizationTable(tableComponents.table, type), { beforePageSwitch: applyChanges }), applyChanges);
+    const dialog = this.closest("dialog");
+    if (dialog !== null) {
+      dialog.hidden = true;
+    }
+    show(createTableUI(createCustomizationTable(tableComponents.table, type), { beforePageSwitch: applyChanges }), table => {
+      applyChanges(table);
+      if (dialog !== null) {
+        dialog.hidden = false;
+      }
+    });
   })
 
   return createTableUI(tableComponents, {
@@ -84,8 +93,17 @@ function createCellLinkElement(value, linkContent) {
   });
   a.addEventListener("click", evt => {
     evt.preventDefault();
+    const dialog = a.closest("dialog");
+    if (dialog !== null) {
+      dialog.hidden = true;
+    }
     applyChanges(evt.target.closest("table"));
-    show(linkContent(), applyChanges);
+    show(linkContent(), content => {
+      applyChanges(content);
+      if (dialog !== null) {
+        dialog.hidden = false;
+      }
+    });
   });
   return a;
 }
@@ -147,7 +165,7 @@ export function getDetailsTableDataMap(...types) {
   ];
 
   headers.Family = [
-    { title: "Identifier", data(geneData) {return geneData.family} },
+    links.family,
     {
       title: "Genes",
       data(geneData, familyIdx) {

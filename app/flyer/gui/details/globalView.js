@@ -17,7 +17,7 @@ export function createGlobalView() {
     children: [
       createMultiView({
         Genes: createTableUIWithCustomizationButton(createMasterTable({}, (family, gene) => dataHandler.getGeneData(family, gene), Gene), "Gene"),
-        Families: createTableUIWithCustomizationButton(createMasterTable({ familyOnly: true }, (family, gene) => dataHandler.getFamilyData(family), Family), "Family"),
+        Families: createTableUIWithCustomizationButton(createMasterTable({ familyOnly: true }, family => dataHandler.getFamilyData(family), Family), "Family"),
       })
     ]
   });
