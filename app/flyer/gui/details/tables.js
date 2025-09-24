@@ -116,7 +116,21 @@ export function getDetailsTableDataMap(...types) {
     family: {
       title: "Family",
       data(geneData, familyIdx, geneIdx) {
-        return createCellLinkElement(geneData.family, () => createTableUI(createSingleDetailsTable(geneData, familyIdx, undefined, headers.Family), {}));
+        return createCellLinkElement(geneData.family, () => createTableUI(createSingleDetailsTable(geneData, familyIdx, undefined, [
+          { title: "Identifier", data(geneData) {return geneData.family } },
+          {
+            title: "Genes",
+            data(geneData, familyIdx) {
+              return createCellLinkElement(`Inspect ${dataHandler.getGeneCount(familyIdx)} members`, () => createTableUIWithCustomizationButton(createMasterTable(
+                { elements: dataHandler.genes(familyIdx).map(gene => ({family: familyIdx, gene})) },
+                (family, gene) => dataHandler.getGeneData(family, gene),
+                headers.Gene
+              ), "Gene"))
+            }
+          },
+          { title: "Visibility", data: createInputForHeaderData("Visible", "boolean") },
+          { title: "Description", data() {return "..."}},
+        ]), {}));
       }
     },
     gene: {

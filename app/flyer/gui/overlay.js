@@ -90,8 +90,8 @@ function addIcons() {
         })]
       });
       if (typeof onclick === "function") {
-        iconElement.addEventListener("click", onclick);
-        iconElement.classList.add("clickable");
+        iconElement.firstChild.addEventListener("click", onclick);
+        iconElement.firstChild.classList.add("clickable");
       }
       areaElement?.appendChild(iconElement);
     }

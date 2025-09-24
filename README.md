@@ -19,7 +19,7 @@ This demo focuses on sex-related gene families across 4 mammalian species:
   
   Loads the full dataset with all available orthogroups.
 
-#### [View selected 5 gene families](https://asishallab-group.github.io/Tensor_Space_Vis/?config=4ZSA57GP56Ct56KK4Zak5Y6U5a6C4YKr4pux4ZqF5YOC5pSd5I6F5YaE2IngsKTji4PnsLHngaHhqIfkrYrhv4zlnrvjkL_nvLDivqrnt6TnsrzjgaPlrYTks6jkrofirbDnkaPjqqrhh5DmsY3ng57iqL7jop7gqK3isK3mnonjko_joL3nj5rip4vmhI3hnrjhoIjljb_moK_nu7vlmp_FvOewiOW-qeKbmuaQlOGciuWcueS_o-KPjeGmvuaqleC3t-W1nuS8p-GBj-eSsOGtp-OcreKYuOaJh9qExpDgo4zhupTigKDkgYDCgMSBxJ7QjOWgiBs)
+#### [View selected 5 gene families](https://asishallab-group.github.io/Tensor_Space_Vis/?config=4LqA5paX57e94K2Y4KyN5JuP45C_5pO_5KSZ46uO55685bOD5L-i4Kmh4YOG5J-c546Q5rmW56Si5a-ExL7khrXni6DmkJPkpIvih4PijrXhuoDntL7mo7PhmLDlnqzkqJrlgbXiu6TinqzWleOHlOKJnOSwmeG5q-GrruaKmuGxmeeao-OlnOC2qOeGn-KjjeeNiuWrtOaDouK7vOCrmeSOoOeFpOCkpuOHj-e5oOWDteSVsOasgOSlneWmo-e-reO9iOamtuSNsuOpo-OcoGjmgJnigozHqciC0ITgoIjhgJDmgJTkgYDltoAB)
 
   Loads a focused view of five representative orthogroups for clearer visualization.
 
@@ -53,7 +53,7 @@ To generate a sharable URL reflecting the current view, use:
 await config.asUrl()
 ```
 
-See an example _(Ensure the server is running before using this feature.)_: [here](http://localhost:8080/?config=4ZSA57GP56Ct56KK4Zak5Y6U5a6C4YKr4pux4ZqF5YOC5pSd5I6F5YaE2IngsKTji4PnsLHngaHhqIfkrYrhv4zlnrvjkL_nvLDivqrnt6TnsrzjgaPlrYTks6jkrofirbDnkaPjqqrhh5DmsY3ng57iqL7jop7gqK3isK3mnonjko_joL3nj5rip4vmhI3hnrjhoIjljb_moK_nu7vlmp_FvOewiOW-qeKbmuaQlOGciuWcueS_o-KPjeGmvuaqleC3t-W1nuS8p-GBj-eSsOGtp-OcreKYuOaJh9qExpDgo4zhupTigKDkgYDCgMSBxJ7QjOWgiBs).
+See an example _(Ensure the server is running before using this feature.)_: [here](http://localhost:8080/?config=4LqA5paX57e94K2Y4KyN5JuP45C_5pO_5KSZ46uO55685bOD5L-i4Kmh4YOG5J-c546Q5rmW56Si5a-ExL7khrXni6DmkJPkpIvih4PijrXhuoDntL7mo7PhmLDlnqzkqJrlgbXiu6TinqzWleOHlOKJnOSwmeG5q-GrruaKmuGxmeeao-OlnOC2qOeGn-KjjeeNiuWrtOaDouK7vOCrmeSOoOeFpOCkpuOHj-e5oOWDteSVsOasgOSlneWmo-e-reO9iOamtuSNsuOpo-OcoGjmgJnigozHqciC0ITgoIjhgJDmgJTkgYDltoAB).
 
 The example includes data from the following gene families:
 

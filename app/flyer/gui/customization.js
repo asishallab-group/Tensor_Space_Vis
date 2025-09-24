@@ -76,6 +76,9 @@ export function createInputForHeaderData(key, type) {
         innerText: value,
         value: type === "color" ? value.slice(0, 7) : value
       });
+      if (type === "color") {
+        content.classList.add("clickable");
+      }
       return content;
     }
   }
