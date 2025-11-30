@@ -9,39 +9,46 @@ export const handler = {
     return Array.from({ length: this.getFamilyCount() }, (_, i) => i);
   },
   genes(familyIdx) {
-    return Array.from({ length: this.getGeneCount(familyIdx) }, (_, i) => i);
+    const geneIndices = data.families[familyIdx]?.gene_indices
+    if (geneIndices !== undefined) {
+      return Array.from({ length: geneIndices.length }, (_, i) => i);
+    }
   },
   get tissues() {
-    return Object.keys(
-      data[0]?.tissues ?? {}
-    );
+    return data.tissues;
   },
   getFamilyIndices(...familyIDs) {
-    familyIDs = new Set(familyIDs);
-    const indices = {};
-    for (let i = 0; i < data.length; i++) {
-      const family = data[i].family;
-      if (familyIDs.delete(family)) {
-        indices[family] = i;
-      }
-      if (familyIDs.size === 0) {
-        break;
-      }
-    }
-    return indices;
+    return getIndices(
+      familyIDs,
+      this.getFamilyCount(),
+      i => this.getFamilyIDs(i)[0]
+    )
+  },
+  getTissueIndices(...tissueIndices) {
+    return getIndices(
+      tissueIndices,
+      this.getTissueCount(),
+      i => this.getTissueNames(i)[0]
+    )
   },
   getFamilyIDs(...familyIndices) {
-    return familyIndices.map(f => data[f]?.family);
+    return familyIndices.map(f => data.families[f]?.family);
+  },
+  getTissueNames(...tissueIndices) {
+    return tissueIndices.map(t => data.tissues[t]);
   },
   getFamilyCount() {
-    return data.length;
+    return data.families.length;
+  },
+  getTissueCount() {
+    return data.tissues.length;
   },
   getGeneCount(familyIdx) {
-    return data[familyIdx]?.genes.length;
+    return data.families[familyIdx]?.gene_indices.length;
   },
   getColor(familyIdx) {
     // using the checksum of the family name as color code
-    const familyID = data[familyIdx]?.family;
+    const familyID = this.getFamilyIDs(familyIdx)[0];
     if (familyID !== undefined) {
       const value = crc32(familyID) & (8**6-1); // mask the bits to have a number that is between octal 0-777777, a range of around 260k values
       const shift = config.get("darkMode") ? 3 : 7;
@@ -63,33 +70,50 @@ export const handler = {
       tissues = this.tissues;
     }
 
+    // TODO: switch to tissue indices in general, as already done with families and genes
+    const tissueIndices = this.getTissueIndices(...tissues);
     for (const tissue of tissues) {
-      familyData.centroid.push(data[familyIdx]?.centroid[tissue]);
-      const tissueData = data[familyIdx]?.tissues[tissue];
+      familyData.centroid.push(data.families[familyIdx]?.centroid[tissueIndices[tissue]]);
+      const tissueData = this.genes(familyIdx).map(gene => {
+        const geneData = this.getGeneData(familyIdx, gene, [tissue], [])
+        return geneData.coordinates[0]
+      });
       familyData.stdDevs.push(stdDev(tissueData ?? []));
     }
     return familyData;
   },
   getGeneData: function (familyIdx, geneIndex, tissues=null, attributes=null) {
     tissues ??= this.tissues;
-
-    const familyData = data[familyIdx];
-    if (familyData !== undefined) {
-      const geneData = {};
-      attributes ??= Object.keys(familyData).slice(0, -2); // without 'centroid' and 'tissues'
+    const tissueIndices = this.getTissueIndices(...tissues);
+    geneIndex = data.families[familyIdx]?.gene_indices[geneIndex];
+    if (geneIndex !== undefined) {
+      const geneData = data.genes[geneIndex];
+      const resultData = {};
+      attributes ??= Object.keys(geneData);
       for (const key of attributes) {
-        if (typeof familyData[key] === "object") {
-          geneData[key] = familyData[key][geneIndex];
-        } else {
-          geneData[key] = familyData[key];
-        }
+        resultData[key] = geneData[key];
       }
-      geneData.coordinates = tissues.map((tissue) => {
-        return familyData.tissues[tissue]?.[geneIndex];
-      })
-      return geneData;
+      resultData.coordinates = tissues.map(tissue => {
+        return geneData.coordinates[tissueIndices[tissue]];
+      });
+      return resultData;
     }
   }
+}
+
+function getIndices(names, totalCount, getName) {
+  names = new Set(names);
+  const indices = {};
+  for (let i = 0; i < totalCount; i++) {
+    const name = getName(i);
+    if (names.delete(name)) {
+      indices[name] = i;
+    }
+    if (names.size === 0) {
+      break;
+    }
+  }
+  return indices;
 }
 
 function stdDev(array) {

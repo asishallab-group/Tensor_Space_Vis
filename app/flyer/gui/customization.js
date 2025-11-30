@@ -17,7 +17,7 @@ export function createCustomizationTable(table, type) {
 
 function createGeneCustomizationTable(table) {
   const headers = [
-    { title: "Gene", data(geneData) {return geneData.genes} },
+    { title: "Gene", data(geneData) {return geneData.id} },
     { title: "Family", data(geneData) {return geneData.family} },
     { title: "Type", data(geneData) {return geneData.is_outlier ? "Outlier" : "Inlier"} },
     { title: "Shift Vector", data: createInputForHeaderData("ShiftVector", "boolean") },
@@ -61,7 +61,6 @@ export function createInputForHeaderData(key, type) {
     return function(geneData, familyIdx, geneIdx) {
       const content = createToggle({
         key,
-        classes: [key],
         checked: config.familyGet(familyIdx, key, geneIdx)
       });
       return content;
@@ -72,7 +71,7 @@ export function createInputForHeaderData(key, type) {
       const content = createElement("input", {
         type,
         key,
-        classes: [key, "textselect"],
+        classes: ["textselect"],
         innerText: value,
         value: type === "color" ? value.slice(0, 7) : value
       });

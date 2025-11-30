@@ -136,8 +136,8 @@ export function getDetailsTableDataMap(...types) {
     gene: {
       title: "Gene",
       data(geneData, familyIdx, geneIdx) {
-        return createCellLinkElement(geneData.genes, () => createTableUI(createSingleDetailsTable(geneData, familyIdx, geneIdx, [
-          { title: "Identifier", data() {return geneData.genes } },
+        return createCellLinkElement(geneData.id, () => createTableUI(createSingleDetailsTable(geneData, familyIdx, geneIdx, [
+          { title: "Identifier", data() {return geneData.id } },
           links.family,
           { title: "Type", data(geneData) {return geneData.is_outlier ? "Outlier" : "Inlier"} },
           { title: "Species", data() {return geneData.species} },
@@ -158,6 +158,11 @@ export function getDetailsTableDataMap(...types) {
         });
       },
       data(geneData) {
+        if (geneData.coordinates[tissues.indexOf(config.get(key))] === undefined) {
+          console.log(geneData);
+          console.log(tissues);
+          console.log(config.get(key))
+        }
         return createElement("span", {
           classes: [key, "data"],
           innerText: geneData.coordinates[tissues.indexOf(config.get(key))].toFixed(3)
